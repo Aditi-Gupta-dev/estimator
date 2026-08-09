@@ -1,0 +1,17 @@
+{
+  "uc1_deviation_regressor": {
+    "champion_model": "random_forest",
+    "test_rmse_pp": 14.85,
+    "test_r2": 0.13,
+    "cv_rmse_pp_mean": 16.86,
+    "cv_rmse_pp_std": 1.07,
+    "alt_model_rmse_pp": 15.41
+  },
+  "uc2_overrun_classifier": {
+    "champion_model": "xgboost",
+    "test_auc": 0.711,
+    "cv_auc_mean": 0.718,
+    "cv_auc_std": 0.06,
+    "alt_model_auc": 0.704
+  }
+}

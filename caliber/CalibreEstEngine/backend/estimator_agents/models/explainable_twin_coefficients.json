@@ -1,0 +1,386 @@
+{
+  "numeric_features": [
+    "n_modules",
+    "n_entities",
+    "integ_simple",
+    "integ_complex",
+    "n_reports",
+    "n_cemli",
+    "n_dm_objects",
+    "duration_months",
+    "team_size",
+    "integ_coverage_ratio",
+    "dm_coverage_ratio"
+  ],
+  "categorical_features": [
+    "complexity",
+    "industry"
+  ],
+  "scaler_mean": [
+    3.45,
+    4.842,
+    21.986,
+    8.574,
+    64.954,
+    16.902,
+    22.662,
+    20.022,
+    24.528,
+    1.2583046136189342,
+    1.2367922115120586
+  ],
+  "scaler_scale": [
+    1.2503999360204718,
+    4.4709099744906515,
+    10.297660122571536,
+    4.009554089920723,
+    31.748446954142498,
+    10.557480570666469,
+    10.337879666546714,
+    6.114042525203763,
+    9.624407306426718,
+    0.4187823145195237,
+    0.41439524880959866
+  ],
+  "categories": {
+    "complexity": [
+      "H",
+      "L",
+      "M",
+      "VH"
+    ],
+    "industry": [
+      "BFSI",
+      "Consumer Goods",
+      "Energy & Utilities",
+      "Healthcare",
+      "Logistics",
+      "Manufacturing",
+      "Professional Services",
+      "Public Sector",
+      "Retail",
+      "Telecom"
+    ]
+  },
+  "uc1_ridge": {
+    "coef": [
+      -0.578866783997805,
+      -0.6647312107192267,
+      1.1132186823650405,
+      1.2077753072537603,
+      -0.42298549688039566,
+      -0.18519093943003306,
+      -1.0954645591603949,
+      0.6172249150143484,
+      -1.2330140177611681,
+      7.008192428902558,
+      2.8761159364701494,
+      4.361676213675087,
+      -11.996486454193855,
+      -0.040561683760246256,
+      7.675371924275767,
+      2.417152416513385,
+      2.0278457663699623,
+      -4.264941858593377,
+      -0.18019945727380365,
+      2.8738861966142615,
+      -1.3026309587047966,
+      -3.3901326606779767,
+      -2.845082761894982,
+      1.93248186719223,
+      2.731621450454363
+    ],
+    "intercept": 23.396081304735997,
+    "feature_order": [
+      "num__n_modules",
+      "num__n_entities",
+      "num__integ_simple",
+      "num__integ_complex",
+      "num__n_reports",
+      "num__n_cemli",
+      "num__n_dm_objects",
+      "num__duration_months",
+      "num__team_size",
+      "num__integ_coverage_ratio",
+      "num__dm_coverage_ratio",
+      "cat__complexity_H",
+      "cat__complexity_L",
+      "cat__complexity_M",
+      "cat__complexity_VH",
+      "cat__industry_BFSI",
+      "cat__industry_Consumer Goods",
+      "cat__industry_Energy & Utilities",
+      "cat__industry_Healthcare",
+      "cat__industry_Logistics",
+      "cat__industry_Manufacturing",
+      "cat__industry_Professional Services",
+      "cat__industry_Public Sector",
+      "cat__industry_Retail",
+      "cat__industry_Telecom"
+    ]
+  },
+  "uc1_quantile_p25": {
+    "coef": [
+      -0.8934263482681731,
+      0.0,
+      0.002861714170684493,
+      0.09218314535401828,
+      -0.8819841196386485,
+      -0.8553173930973433,
+      -0.7649448609472463,
+      0.0,
+      -0.8321895026990598,
+      6.524197694196423,
+      1.5296788100548566,
+      2.8941247030052537,
+      -8.612250816903675,
+      0.0,
+      6.598128508729811,
+      0.0,
+      0.0,
+      -0.4881266036304215,
+      0.0,
+      0.0,
+      0.0,
+      -1.217234511204623,
+      0.0,
+      0.0,
+      0.6422277018827014
+    ],
+    "intercept": 12.356815479450347,
+    "feature_order": [
+      "num__n_modules",
+      "num__n_entities",
+      "num__integ_simple",
+      "num__integ_complex",
+      "num__n_reports",
+      "num__n_cemli",
+      "num__n_dm_objects",
+      "num__duration_months",
+      "num__team_size",
+      "num__integ_coverage_ratio",
+      "num__dm_coverage_ratio",
+      "cat__complexity_H",
+      "cat__complexity_L",
+      "cat__complexity_M",
+      "cat__complexity_VH",
+      "cat__industry_BFSI",
+      "cat__industry_Consumer Goods",
+      "cat__industry_Energy & Utilities",
+      "cat__industry_Healthcare",
+      "cat__industry_Logistics",
+      "cat__industry_Manufacturing",
+      "cat__industry_Professional Services",
+      "cat__industry_Public Sector",
+      "cat__industry_Retail",
+      "cat__industry_Telecom"
+    ]
+  },
+  "uc1_quantile_p75": {
+    "coef": [
+      0.0,
+      -0.25062029233676114,
+      1.755234468381768,
+      1.3170093884295584,
+      0.0,
+      0.0,
+      -1.1806649282855257,
+      0.40169341269873093,
+      -0.4968992285931827,
+      5.920303562756859,
+      3.903488626488489,
+      2.231250307435453,
+      -11.434500114641056,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      -5.588232763586725,
+      0.0,
+      0.2588970362331251
+    ],
+    "intercept": 35.57615406865497,
+    "feature_order": [
+      "num__n_modules",
+      "num__n_entities",
+      "num__integ_simple",
+      "num__integ_complex",
+      "num__n_reports",
+      "num__n_cemli",
+      "num__n_dm_objects",
+      "num__duration_months",
+      "num__team_size",
+      "num__integ_coverage_ratio",
+      "num__dm_coverage_ratio",
+      "cat__complexity_H",
+      "cat__complexity_L",
+      "cat__complexity_M",
+      "cat__complexity_VH",
+      "cat__industry_BFSI",
+      "cat__industry_Consumer Goods",
+      "cat__industry_Energy & Utilities",
+      "cat__industry_Healthcare",
+      "cat__industry_Logistics",
+      "cat__industry_Manufacturing",
+      "cat__industry_Professional Services",
+      "cat__industry_Public Sector",
+      "cat__industry_Retail",
+      "cat__industry_Telecom"
+    ]
+  },
+  "uc2_logit": {
+    "coef": [
+      -0.14359631615313717,
+      0.17714738236357686,
+      0.04508836944931077,
+      0.2640595093381748,
+      0.08351101331876795,
+      -0.05604705264102543,
+      -0.07521289599886764,
+      -0.01669544661199237,
+      -0.09086577766538707,
+      0.9407721345814479,
+      0.1779571040032919,
+      0.5955626644049934,
+      -1.498856708036831,
+      -0.6140567761774124,
+      1.519830761141818,
+      0.15120389495417816,
+      -0.23545043005172156,
+      -0.787196784251601,
+      0.055734195392785194,
+      0.08296116876186975,
+      0.2866443467538664,
+      -0.20920225992106156,
+      0.30248011229373356,
+      -0.24075195227237955,
+      0.5960576496728983
+    ],
+    "intercept": 1.6760425027887096,
+    "feature_order": [
+      "num__n_modules",
+      "num__n_entities",
+      "num__integ_simple",
+      "num__integ_complex",
+      "num__n_reports",
+      "num__n_cemli",
+      "num__n_dm_objects",
+      "num__duration_months",
+      "num__team_size",
+      "num__integ_coverage_ratio",
+      "num__dm_coverage_ratio",
+      "cat__complexity_H",
+      "cat__complexity_L",
+      "cat__complexity_M",
+      "cat__complexity_VH",
+      "cat__industry_BFSI",
+      "cat__industry_Consumer Goods",
+      "cat__industry_Energy & Utilities",
+      "cat__industry_Healthcare",
+      "cat__industry_Logistics",
+      "cat__industry_Manufacturing",
+      "cat__industry_Professional Services",
+      "cat__industry_Public Sector",
+      "cat__industry_Retail",
+      "cat__industry_Telecom"
+    ]
+  },
+  "risk_band_thresholds": {
+    "amber": 0.883366047901483,
+    "red": 0.9749429863629525
+  },
+  "empirical_overrun_rate_by_band": {
+    "GREEN": {
+      "actual_overrun_rate": 0.6533,
+      "n_projects": 300
+    },
+    "AMBER": {
+      "actual_overrun_rate": 0.9133,
+      "n_projects": 150
+    },
+    "RED": {
+      "actual_overrun_rate": 1.0,
+      "n_projects": 50
+    }
+  },
+  "training_ranges": {
+    "n_modules": {
+      "min": 2.0,
+      "max": 6.0,
+      "median": 3.0
+    },
+    "n_entities": {
+      "min": 1.0,
+      "max": 20.0,
+      "median": 3.0
+    },
+    "integ_simple": {
+      "min": 5.0,
+      "max": 40.0,
+      "median": 22.0
+    },
+    "integ_complex": {
+      "min": 2.0,
+      "max": 15.0,
+      "median": 9.0
+    },
+    "n_reports": {
+      "min": 10.0,
+      "max": 120.0,
+      "median": 64.0
+    },
+    "n_cemli": {
+      "min": 0.0,
+      "max": 35.0,
+      "median": 16.0
+    },
+    "n_dm_objects": {
+      "min": 5.0,
+      "max": 40.0,
+      "median": 22.0
+    },
+    "duration_months": {
+      "min": 10.0,
+      "max": 30.0,
+      "median": 20.0
+    },
+    "team_size": {
+      "min": 8.0,
+      "max": 40.0,
+      "median": 25.0
+    },
+    "integ_coverage_ratio": {
+      "min": 0.7996781979082864,
+      "max": 2.0,
+      "median": 1.1927001835305129
+    },
+    "dm_coverage_ratio": {
+      "min": 0.7992495309568481,
+      "max": 2.0,
+      "median": 1.1664774328513516
+    }
+  },
+  "industries": [
+    "BFSI",
+    "Consumer Goods",
+    "Energy & Utilities",
+    "Healthcare",
+    "Logistics",
+    "Manufacturing",
+    "Professional Services",
+    "Public Sector",
+    "Retail",
+    "Telecom"
+  ],
+  "complexities": [
+    "L",
+    "M",
+    "H",
+    "VH"
+  ]
+}

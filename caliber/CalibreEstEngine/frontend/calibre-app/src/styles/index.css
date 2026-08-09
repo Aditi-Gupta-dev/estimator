@@ -1,0 +1,306 @@
+/* ══════════════════════════════════════════════════════════════════════════════
+   CALIBRE ESTIMATION ENGINE — Global Design System
+   Dark glassmorphism, enterprise-grade, EVA-first
+══════════════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+/* ── CSS Custom Properties ─────────────────────────────────────────────── */
+:root {
+  /* Surfaces — deep TCS navy */
+  --bg:           #040D1E;
+  --surface-1:    #071530;
+  --surface-2:    #0C1E42;
+  --surface-3:    #122554;
+  --surface-4:    #1A3068;
+
+  /* Borders */
+  --border:       rgba(255,255,255,0.07);
+  --border-strong:rgba(255,255,255,0.14);
+  --border-hover: rgba(255,255,255,0.22);
+
+  /* Text */
+  --text-primary:   #EDF2F7;
+  --text-secondary: #94A8C0;
+  --text-muted:     #4A6080;
+
+  /* Gold (Primary Accent — TCS brand) */
+  --cyan:         #F5A400;
+  --cyan-bg:      rgba(245,164,0,0.12);
+  --cyan-border:  rgba(245,164,0,0.35);
+  --cyan-glow:    rgba(245,164,0,0.28);
+
+  /* Gold aliases for clarity */
+  --gold:         #F5A400;
+  --gold-light:   #FFD060;
+  --gold-bg:      rgba(245,164,0,0.12);
+  --gold-border:  rgba(245,164,0,0.35);
+  --gold-glow:    rgba(245,164,0,0.28);
+
+  /* EVA Violet — kept distinct */
+  --eva:          #7C6FFF;
+  --eva-2:        #5B8EFF;
+  --eva-bg:       rgba(124,111,255,0.12);
+  --eva-border:   rgba(124,111,255,0.35);
+  --eva-glow:     rgba(124,111,255,0.45);
+  --eva-gradient: linear-gradient(135deg, #7C6FFF 0%, #5B8EFF 100%);
+
+  /* Accent Colors */
+  --green:        #34D399;
+  --green-bg:     rgba(52,211,153,0.1);
+  --green-border: rgba(52,211,153,0.3);
+
+  --amber:        #FFB347;
+  --amber-bg:     rgba(255,179,71,0.1);
+  --amber-border: rgba(255,179,71,0.3);
+
+  --purple:       #A78BFA;
+  --purple-bg:    rgba(167,139,250,0.1);
+  --purple-border:rgba(167,139,250,0.3);
+
+  --teal:         #2DD4BF;
+  --teal-bg:      rgba(45,212,191,0.1);
+  --teal-border:  rgba(45,212,191,0.3);
+
+  --danger:       #F87171;
+  --danger-bg:    rgba(248,113,113,0.1);
+  --danger-border: rgba(248,113,113,0.3);
+
+  /* Radius */
+  --r-sm:  6px;
+  --r-md:  10px;
+  --r-lg:  14px;
+  --r-xl:  20px;
+  --r-full:9999px;
+
+  /* Fonts */
+  --font:  'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+
+  /* Transitions */
+  --tx-fast:   0.15s ease;
+  --tx-base:   0.2s cubic-bezier(0.4,0,0.2,1);
+  --tx-spring: 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+/* ── Base Reset ─────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+
+button {
+  font-family: var(--font);
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input, textarea {
+  font-family: var(--font);
+  color: var(--text-primary);
+}
+
+/* ── Custom Scrollbar ───────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--surface-3); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   KEYFRAME LIBRARY
+══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Pulse (green online dot) ─────────────────────────────────────────── */
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(52,211,153,0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(52,211,153,0); }
+  100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+}
+
+/* ── EVA breathing avatar ─────────────────────────────────────────────── */
+@keyframes evaBreath {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.03); }
+}
+
+/* ── EVA ring rotation ────────────────────────────────────────────────── */
+@keyframes ringRotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── EVA ring counter-rotation ────────────────────────────────────────── */
+@keyframes ringRotateReverse {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+/* ── EVA panel header gradient pulse ──────────────────────────────────── */
+@keyframes headerPulse {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+/* ── Typing bounce dots ───────────────────────────────────────────────── */
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%           { transform: translateY(-6px); }
+}
+
+/* ── Card stagger load-in ─────────────────────────────────────────────── */
+@keyframes staggerFadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Hero fade in with blur ───────────────────────────────────────────── */
+@keyframes heroFadeIn {
+  from { opacity: 0; filter: blur(8px); transform: translateY(-8px); }
+  to   { opacity: 1; filter: blur(0);   transform: translateY(0); }
+}
+
+/* ── Topbar slide down ────────────────────────────────────────────────── */
+@keyframes topbarSlideDown {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+/* ── EVA FAB spring in ────────────────────────────────────────────────── */
+@keyframes fabSpringIn {
+  0%   { transform: scale(0) translateY(20px); opacity: 0; }
+  60%  { transform: scale(1.08) translateY(-4px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* ── Animated gradient border ─────────────────────────────────────────── */
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Hero mesh background drift ───────────────────────────────────────── */
+@keyframes meshDrift {
+  0%   { background-position: 0% 0%; }
+  25%  { background-position: 100% 0%; }
+  50%  { background-position: 100% 100%; }
+  75%  { background-position: 0% 100%; }
+  100% { background-position: 0% 0%; }
+}
+
+/* ── Card shimmer sweep ───────────────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(300%) skewX(-15deg); }
+}
+
+/* ── Toast slide in/out ───────────────────────────────────────────────── */
+@keyframes toastIn {
+  from { transform: translateX(-110%); opacity: 0; }
+  to   { transform: translateX(0);     opacity: 1; }
+}
+
+@keyframes toastOut {
+  from { transform: translateX(0);     opacity: 1; }
+  to   { transform: translateX(-110%); opacity: 0; }
+}
+
+/* ── Voice orb pulse ──────────────────────────────────────────────────── */
+@keyframes voicePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(124,111,255,0.55); }
+  70%  { box-shadow: 0 0 0 24px rgba(124,111,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(124,111,255,0); }
+}
+
+/* ── Login orb float ──────────────────────────────────────────────────── */
+@keyframes orbFloat {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%       { transform: translateY(-30px) scale(1.05); }
+}
+
+/* ── Waveform bar animation ───────────────────────────────────────────── */
+@keyframes waveBar {
+  0%, 100% { transform: scaleY(0.4); }
+  50%       { transform: scaleY(1); }
+}
+
+/* ── Glow line shift ──────────────────────────────────────────────────── */
+@keyframes glowLine {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 200% 0%; }
+}
+
+/* ── Role transition fade ─────────────────────────────────────────────── */
+.transitioning {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   UTILITY CLASSES
+══════════════════════════════════════════════════════════════════════════ */
+
+.glass {
+  background: rgba(21,34,56,0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+}
+
+.glow-cyan   { box-shadow: 0 0 20px var(--gold-glow); }
+.glow-gold   { box-shadow: 0 0 20px var(--gold-glow); }
+.glow-eva    { box-shadow: 0 0 20px var(--eva-glow); }
+.glow-green  { box-shadow: 0 0 20px rgba(52,211,153,0.3); }
+.glow-amber  { box-shadow: 0 0 20px rgba(255,179,71,0.3); }
+.glow-purple { box-shadow: 0 0 20px rgba(167,139,250,0.3); }
+.glow-teal   { box-shadow: 0 0 20px rgba(45,212,191,0.3); }
+
+.monospace { font-family: var(--font-mono); }
+
+/* Badge colors */
+.badge-cyan   { background: var(--cyan-bg);   color: var(--cyan);   border: 1px solid var(--cyan-border); }
+.badge-green  { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+.badge-amber  { background: var(--amber-bg);  color: var(--amber);  border: 1px solid var(--amber-border); }
+.badge-purple { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+.badge-teal   { background: var(--teal-bg);   color: var(--teal);   border: 1px solid var(--teal-border); }
+.badge-eva    { background: var(--eva-bg);    color: var(--eva);    border: 1px solid var(--eva-border); }
+
+/* Classifier tags (EVA messages) */
+.classifier-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--r-full);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+}
+.classifier-tag.t1 { background: var(--cyan-bg);   color: var(--cyan);   border: 1px solid var(--cyan-border); }
+.classifier-tag.t2 { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+.classifier-tag.t3 { background: var(--amber-bg);  color: var(--amber);  border: 1px solid var(--amber-border); }
+.classifier-tag.t4 { background: var(--purple-bg); color: var(--purple); border: 1px solid var(--purple-border); }
+.classifier-tag.t5 { background: var(--teal-bg);   color: var(--teal);   border: 1px solid var(--teal-border); }
+.classifier-tag.t6 { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }

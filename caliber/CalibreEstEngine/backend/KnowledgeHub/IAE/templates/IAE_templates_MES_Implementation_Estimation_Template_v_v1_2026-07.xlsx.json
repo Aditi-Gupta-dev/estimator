@@ -1,0 +1,16 @@
+{
+  "title": "MES Implementation Estimation Template",
+  "type": "template",
+  "unitId": "iae",
+  "version": "1.0",
+  "description": "Standard MES implementation effort sizing worksheet.",
+  "tags": ["mes", "estimation", "template", "iae"],
+  "department": "both",
+  "programType": "general",
+  "status": "published",
+  "uploaderRole": "Admin / COE",
+  "uploadedAt": "2026-07-29T09:41:00.000Z",
+  "originalName": "MES_Implementation_Estimation_Template.xlsx",
+  "savedName": "IAE_templates_MES_Implementation_Estimation_Template_v_v1_2026-07.xlsx",
+  "size": 33871
+}

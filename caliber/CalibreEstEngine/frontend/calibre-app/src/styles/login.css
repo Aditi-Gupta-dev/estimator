@@ -1,0 +1,420 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   LOGIN PAGE STYLES
+══════════════════════════════════════════════════════════════════════════ */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  background: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Floating orbs background ───────────────────────────────────────────── */
+.login-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+.login-orb-1 {
+  width: 500px;
+  height: 500px;
+  background: rgba(0,212,255,0.08);
+  top: -100px;
+  left: -150px;
+  animation: orbFloat 9s ease-in-out infinite;
+}
+
+.login-orb-2 {
+  width: 400px;
+  height: 400px;
+  background: rgba(124,111,255,0.1);
+  bottom: -80px;
+  right: -80px;
+  animation: orbFloat 11s ease-in-out infinite reverse;
+}
+
+.login-orb-3 {
+  width: 300px;
+  height: 300px;
+  background: rgba(45,212,191,0.06);
+  bottom: 200px;
+  left: 30%;
+  animation: orbFloat 13s ease-in-out infinite 2s;
+}
+
+/* ── Left panel ─────────────────────────────────────────────────────────── */
+.login-left {
+  flex: 1.1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 60px 60px 60px 80px;
+  position: relative;
+  z-index: 1;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 64px;
+}
+
+.login-logo-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--cyan) 0%, #0080FF 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 32px rgba(0,212,255,0.4);
+}
+
+.login-logo-mark svg {
+  width: 28px;
+  height: 28px;
+  color: #080F1A;
+}
+
+.login-wordmark {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+}
+
+.login-wordmark span { color: var(--cyan); }
+
+.login-tagline {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  line-height: 1.2;
+  margin-bottom: 20px;
+  max-width: 460px;
+}
+
+.login-tagline .gradient-text {
+  background: linear-gradient(135deg, var(--cyan), var(--eva));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.login-sub {
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  max-width: 400px;
+  margin-bottom: 48px;
+}
+
+.login-features {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-feature {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.login-feature-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.login-feature-icon svg { width: 18px; height: 18px; }
+
+.login-eva-teaser {
+  position: absolute;
+  bottom: 40px;
+  right: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.login-eva-label {
+  font-size: 12px;
+  color: var(--eva);
+  font-weight: 500;
+}
+
+/* ── Right panel (form) ─────────────────────────────────────────────────── */
+.login-right {
+  flex: 0.9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.login-right::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 10%;
+  bottom: 10%;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--border-strong), transparent);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(21,34,56,0.82);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--border-strong);
+  border-radius: 24px;
+  padding: 40px;
+  animation: heroFadeIn 0.5s ease-out 0.1s both;
+}
+
+.login-card-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+}
+
+.login-card-sub {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+}
+
+/* ── Credentials form ────────────────────────────────────────────────────── */
+.login-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: border-color var(--tx-base);
+}
+
+.login-input:focus { border-color: var(--eva-border); }
+.login-input::placeholder { color: var(--text-muted); }
+.login-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.login-spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Department selector ─────────────────────────────────────────────────── */
+.form-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 10px;
+}
+
+.dept-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.dept-option {
+  flex: 1;
+  padding: 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--tx-base);
+}
+
+.dept-option:hover:not(.active) {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.dept-option.active {
+  background: var(--cyan-bg);
+  border-color: var(--cyan-border);
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+/* ── Role cards ──────────────────────────────────────────────────────────── */
+.role-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.role-card {
+  padding: 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: all var(--tx-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.role-card:hover:not(.active) {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+}
+
+.role-card.active {
+  border-color: currentColor;
+}
+
+.role-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.role-card.active::before { opacity: 1; }
+
+.role-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.role-card-icon svg { width: 17px; height: 17px; }
+
+.role-card-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 3px;
+}
+
+.role-card-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.role-card-check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--tx-base);
+}
+
+.role-card.active .role-card-check { opacity: 1; }
+.role-card-check svg { width: 11px; height: 11px; color: #080F1A; }
+
+/* ── CTA Button ──────────────────────────────────────────────────────────── */
+.login-cta {
+  width: 100%;
+  padding: 14px;
+  border-radius: var(--r-md);
+  border: none;
+  background: var(--eva-gradient);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--tx-base), box-shadow var(--tx-base);
+  box-shadow: 0 8px 24px var(--eva-glow);
+  letter-spacing: -0.01em;
+}
+
+.login-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 32px rgba(124,111,255,0.55);
+}
+
+.login-cta:active { transform: scale(0.99); }
+
+.login-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+  opacity: 0;
+  transition: opacity var(--tx-fast);
+}
+
+.login-cta:hover::after { opacity: 1; }
+
+.login-cta:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .login-left { display: none; }
+  .login-right { flex: 1; }
+  .login-right::before { display: none; }
+}
+
+@media (max-width: 480px) {
+  .login-right { padding: 20px; }
+  .login-card { padding: 28px 24px; }
+  .role-cards-grid { grid-template-columns: 1fr; }
+}
