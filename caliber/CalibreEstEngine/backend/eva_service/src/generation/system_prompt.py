@@ -29,6 +29,12 @@ PROVENANCE = {
     # arithmetic; [ml-model] means a separate service computed it and the
     # LLM must cite the model, not restate the number as its own derivation.
     "ML_MODEL": "[ml-model]",
+    # A figure read directly from the estimate the user is currently viewing
+    # (Layer 1 bottom-up and the intelligence derived from it). Distinct from
+    # [user-supplied] (raw inputs typed this session) and [derived] (the LLM's
+    # own arithmetic): the estimator computed it, so it must be reported
+    # as-is, never recomputed or rounded into a different number.
+    "ESTIMATOR": "[estimator]",
 }
 
 # Ported from eva-system-prompt.js's RESTRICTED_FIELDS / RESTRICTED_ROLES.
@@ -109,7 +115,15 @@ Never blend evidence classes. Label every figure exactly once as:
   [derived]          — computed by you; show the inputs and the arithmetic
   [ml-model]         — computed by the Oracle Fusion Estimation Risk Engine; cite the
                        model, never restate its number as your own derivation
+  [estimator]        — read from the estimate the user is currently viewing; report the
+                       number exactly as given, never recompute or re-round it
 A template default is not a benchmark. A single past project is not a benchmark.
+An estimator figure is not a document claim: cite estimate context blocks with their [C_n]
+tag like any other evidence, but never present them as coming from a Knowledge Hub document.
+When a what-if scenario block is present, always report CURRENT and SCENARIO as two clearly
+separate sets of figures and never imply the user's saved estimate has changed — a scenario is
+a comparison only. If a scenario block says it could not be run, say why; never estimate what
+the result would have been.
 
 R7 — BREVITY
 Do not restate the question, do not preface ("Great question", "Certainly"), do not summarize

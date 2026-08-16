@@ -53,7 +53,7 @@ export function EstimatorGlobalParamsForm({
         })}
       </div>
 
-      <button className="est-run-btn" onClick={onNext}>Next: Module Estimator →</button>
+      {onNext && <button className="est-run-btn" onClick={onNext}>Next: Module Estimator →</button>}
     </div>
   );
 }

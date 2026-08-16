@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     # boundary between them (see EVA_RAG_IMPLEMENTATION_PLAN.md / agents plan).
     estimator_service_url: str = "http://localhost:8000"
 
+    # The Node gateway. Called back for /internal/estimator/scenario only,
+    # which runs the same JS estimator engine the browser uses — so what-if
+    # results come from one implementation rather than a Python copy of the
+    # formulas. internal_api_key must match upload-server's INTERNAL_API_KEY.
+    upload_server_url: str = "http://localhost:3001"
+    internal_api_key: str = "dev-internal-key-change-me"
+
     # ── Semantic cache ──────────────────────────────────────────────────────
     cache_similarity_threshold: float = 0.93
     cache_promotion_hit_count: int = 3

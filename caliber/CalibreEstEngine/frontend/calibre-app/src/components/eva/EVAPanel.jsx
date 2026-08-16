@@ -12,6 +12,7 @@ export function EVAPanel({ evaState }) {
     isOpen, closeEVA, clearChat,
     messages, sendMessage, isTyping,
     mode, setMode, suggestions,
+    hasEstimatorContext,
   } = evaState;
   const { currentRole } = useRoleContext();
   const messagesEndRef = useRef(null);
@@ -41,6 +42,12 @@ export function EVAPanel({ evaState }) {
             <div className="eva-status-dot" />
             {isTyping ? 'Thinking…' : 'Online — ready to assist'}
           </div>
+          {hasEstimatorContext && (
+            <div className="eva-context-badge" title="EVA can see the estimate you're working on">
+              <span className="eva-context-dot" />
+              Estimator context active
+            </div>
+          )}
         </div>
         <div className="eva-header-actions">
           <button

@@ -150,6 +150,25 @@
   flex-shrink: 0;
 }
 
+/* Shown only while the user has a live estimate EVA can read. */
+.eva-context-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--gold);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.eva-context-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gold);
+  flex-shrink: 0;
+}
+
 .eva-header-actions {
   display: flex;
   gap: 6px;

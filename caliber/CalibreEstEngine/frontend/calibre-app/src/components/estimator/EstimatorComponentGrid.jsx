@@ -140,7 +140,7 @@ export function EstimatorComponentGrid({
         </table>
       </div>
 
-      <button className="est-run-btn" onClick={onNext}>Run Estimate →</button>
+      {onNext && <button className="est-run-btn" onClick={onNext}>Run Estimate →</button>}
     </div>
   );
 }

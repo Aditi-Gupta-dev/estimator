@@ -22,6 +22,11 @@ from ..retrieval.retriever import retrieve as retrieve_chunks
 from ..retrieval.role_gate import filter_retrieved_chunks
 from ..retrieval.short_term_memory import build_rolling_summary
 from ..storage.faiss_manager import get_faiss_manager
+from .estimator_context import (
+    format_risk_reduction_block,
+    format_scenario_block,
+    select_estimator_blocks,
+)
 from .state import EvaGraphState, trail_step
 
 
@@ -33,9 +38,13 @@ def supervisor_node(state: EvaGraphState) -> dict:
     recent_messages = state.get("recent_messages") or []
     rolling_summary = build_rolling_summary(recent_messages) if recent_messages else state.get("rolling_summary")
 
+    # The planner has always had an active_estimate_id slot; it now receives
+    # a real id whenever the user is working on an estimate, so the planner
+    # can tell "my estimate" questions from hypothetical-project ones.
+    estimator_context = state.get("estimator_context") or {}
     plan = plan_query(
         state["llm"], state["message"], state["caller_role"],
-        state.get("unit_id"), None, rolling_summary,
+        state.get("unit_id"), estimator_context.get("estimateId"), rolling_summary,
     )
     intent = plan.get("intent")
     return {
@@ -97,6 +106,76 @@ def retrieve_node(state: EvaGraphState) -> dict:
     }
 
 
+# Told to the model as evidence, so it explains the real reason a what-if
+# could not be run instead of improvising an answer (spec §42).
+SCENARIO_ERROR_TEXT = {
+    "no_base_inputs": (
+        "The scenario could not be run: there is no active estimate in context. Tell the user to "
+        "open or run an estimate first, and do not estimate the outcome yourself."
+    ),
+    "unsupported_change": (
+        "The scenario could not be run: the requested change falls outside the supported estimator "
+        "range. Reason: {detail} Report this limit to the user; do not approximate the result."
+    ),
+    "service_unavailable": (
+        "The scenario could not be run: the estimator scenario service is unavailable. Say so "
+        "plainly and do not estimate what the result would have been."
+    ),
+    "extraction_failed": (
+        "The scenario could not be run: the requested change could not be interpreted. Ask the user "
+        "to restate it concretely; do not guess a result."
+    ),
+    "tool_calling_unavailable": (
+        "The scenario could not be run: scenario execution is unavailable in this configuration. "
+        "Say so; do not estimate the outcome."
+    ),
+    "invalid_change": (
+        "The scenario could not be run: the requested change was not valid for the estimator. "
+        "Say so; do not estimate the outcome."
+    ),
+}
+
+
+def estimator_context_node(state: EvaGraphState) -> dict:
+    """Selects the smallest set of live-estimate blocks that answers the turn.
+
+    Deterministic — no LLM call. The estimate data is already in the request
+    (computed by the estimator itself), so there is nothing to extract and
+    nothing to recalculate; this only decides which parts are relevant.
+    """
+    ctx = state.get("estimator_context")
+    blocks = select_estimator_blocks(state.get("message", ""), state.get("intent"), ctx)
+    if not blocks:
+        return {
+            "estimator_blocks": [],
+            "agent_trail": trail_step("estimator_context", "No estimate context used", ""),
+        }
+    titles = ", ".join(b["title"] for b in blocks)
+    return {
+        "estimator_blocks": blocks,
+        "agent_trail": trail_step("estimator_context", f"Read {len(blocks)} estimate block(s)", titles),
+    }
+
+
+def _append_synthetic(context_chunks: list, synthetic_citations: dict, source: str,
+                      text: str, title: str, section_path: str, document_class: str,
+                      provenance: str) -> None:
+    """Appends one synthetic (non-RAG) evidence block and records its citation.
+
+    The tag number MUST be computed at append time, not once up front —
+    several synthetic blocks can now be appended in a single turn (estimator
+    blocks plus a score_project result), and a precomputed offset would make
+    them collide onto the same [C_n] tag.
+    """
+    tag_n = len(context_chunks) + 1
+    context_chunks.append({"source": source, "text": text})
+    synthetic_citations[tag_n] = {
+        "tag": f"C{tag_n}", "chunk_id": None, "document_id": None,
+        "document_title": title, "section_path": section_path, "unit_id": None,
+        "document_class": document_class, "document_path": None, "provenance": provenance,
+    }
+
+
 def generate_node(state: EvaGraphState) -> dict:
     retrieved = state.get("retrieved") or []
     context_chunks = [
@@ -107,29 +186,79 @@ def generate_node(state: EvaGraphState) -> dict:
         for r in retrieved
     ]
 
-    # Fold the estimate tool's result (if any) into the SAME grounded
-    # context/citation pipeline used for RAG chunks — one well-tested code
-    # path enforcing R1-R8 uniformly, rather than a second synthesis call.
+    # Fold tool/estimator results into the SAME grounded context/citation
+    # pipeline used for RAG chunks — one well-tested code path enforcing
+    # R1-R8 uniformly, rather than a second synthesis call.
     synthetic_citations: dict[int, dict] = {}
+
+    for block in state.get("estimator_blocks") or []:
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source=f"Current Estimate — {block['title']}",
+            text=block["text"],
+            title="Current Estimate (Calibre estimator)",
+            section_path=block["title"],
+            document_class="estimator",
+            provenance="estimator",
+        )
+
+    # A scenario that could not be run must be explained, not silently
+    # dropped — otherwise the model fills the gap with a guess.
+    scenario_error = state.get("scenario_error")
+    if scenario_error:
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source="What-if scenario (not executed)",
+            text=SCENARIO_ERROR_TEXT.get(scenario_error, SCENARIO_ERROR_TEXT["service_unavailable"]).format(
+                detail=state.get("scenario_error_detail") or "",
+            ),
+            title="What-if Scenario Unavailable",
+            section_path="scenario_error",
+            document_class="estimator",
+            provenance="estimator",
+        )
+
+    scenario_result = state.get("scenario_result")
+    if scenario_result:
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source="What-if scenario (executed by the Calibre estimator engine)",
+            text=format_scenario_block(scenario_result),
+            title="What-if Scenario Result",
+            section_path="scenario",
+            document_class="estimator",
+            provenance="estimator",
+        )
+
+    risk_reduction = state.get("risk_reduction")
+    if risk_reduction is not None:
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source="Risk-reduction scenarios (each executed by the Calibre estimator engine)",
+            text=format_risk_reduction_block(risk_reduction),
+            title="Risk-reduction Options",
+            section_path="risk_reduction",
+            document_class="estimator",
+            provenance="estimator",
+        )
+
     score_result = state.get("score_result")
     if score_result:
         ml = score_result["ml_calibration"]
-        tag_n = len(context_chunks) + 1
-        context_chunks.append({
-            "source": "Oracle Fusion Estimation Risk Engine (ml_calibration)",
-            "text": (
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source="Oracle Fusion Estimation Risk Engine (ml_calibration)",
+            text=(
                 f"predicted_deviation_pct={ml['predicted_deviation_pct']}, "
                 f"range=[{ml['range_low_pct']},{ml['range_high_pct']}], "
                 f"overrun_probability={ml['overrun_probability']}, risk_band={ml['risk_band']}, "
                 f"top_drivers={ml['top_drivers']}"
             ),
-        })
-        synthetic_citations[tag_n] = {
-            "tag": f"C{tag_n}", "chunk_id": None, "document_id": None,
-            "document_title": "Oracle Fusion Estimation Risk Engine",
-            "section_path": "ml_calibration", "unit_id": None, "document_class": "ml-model",
-            "document_path": None, "provenance": "ml-model",
-        }
+            title="Oracle Fusion Estimation Risk Engine",
+            section_path="ml_calibration",
+            document_class="ml-model",
+            provenance="ml-model",
+        )
 
     long_term_facts = [f.fact_text for f in (state.get("long_term_facts") or [])]
 

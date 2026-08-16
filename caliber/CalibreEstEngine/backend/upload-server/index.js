@@ -21,11 +21,15 @@ import { fileURLToPath } from 'url';
 
 import authRoutes from './auth/routes.js';
 import { requireAuth, requireRole } from './auth/middleware.js';
+import { runScenario, ScenarioValidationError } from './estimator/scenarioRunner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app  = express();
-const PORT = 3001;
+// Configurable so a second instance can be started alongside the running one
+// (e.g. for smoke-testing a route) without a port clash. Defaults to the
+// port the frontend and both Python services expect.
+const PORT = Number(process.env.PORT) || 3001;
 
 // ── Oracle Fusion Estimator service (Python/FastAPI) ──────────────────────────
 // Configurable so prod can point at an internal service URL instead of localhost.
@@ -33,6 +37,12 @@ const ESTIMATOR_URL = process.env.ESTIMATOR_URL || 'http://localhost:8000';
 
 // ── EVA RAG service (Python/FastAPI + LangChain) ───────────────────────────────
 const EVA_URL = process.env.EVA_URL || 'http://localhost:8001';
+
+// ── Internal service-to-service key ───────────────────────────────────────────
+// Guards /internal/* routes, which are called by eva_service (which has no
+// session cookie of its own) rather than by the browser. Dev default matches
+// the JWT_SECRET convention below — warned about loudly at startup.
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key-change-me';
 
 // ── KnowledgeHub root ─────────────────────────────────────────────────────────
 const KH_ROOT = path.resolve(__dirname, '..', 'KnowledgeHub');
@@ -335,6 +345,59 @@ app.post('/api/score', requireAuth, requireRole('admin', 'super', 'sme', 'estima
   }
 });
 
+// ── Internal: what-if scenario execution (called by eva_service) ──────────────
+// Runs the SAME estimator engine the browser runs (see estimator/scenarioRunner.js
+// — it imports the frontend's own modules) so EVA can answer "what if I increase
+// integration effort by 10%?" with a real calculation instead of a guess.
+//
+// Not browser-facing and not cookie-authenticated: eva_service has no session.
+// It is guarded by the shared INTERNAL_API_KEY, and still applies the SAME role
+// gate as /api/score so this cannot be used to score as a role that isn't
+// allowed to (notably senior_mgmt). The role it receives was already
+// overwritten with the verified session role by the /api/eva proxy below.
+const SCORE_ALLOWED_ROLES = ['admin', 'super', 'sme', 'estimator'];
+
+app.post('/internal/estimator/scenario', async (req, res) => {
+  if (req.get('x-internal-key') !== INTERNAL_API_KEY) {
+    return res.status(401).json({ success: false, error: 'Invalid internal key.' });
+  }
+
+  const { callerRole, baseInputs, changes } = req.body || {};
+
+  if (!SCORE_ALLOWED_ROLES.includes(callerRole)) {
+    return res.status(403).json({
+      success: false,
+      error: 'This role is not permitted to run estimator scoring.',
+    });
+  }
+  if (!baseInputs?.sectionA || !baseInputs?.overrides) {
+    return res.status(400).json({
+      success: false,
+      error: 'baseInputs.sectionA and baseInputs.overrides are required.',
+    });
+  }
+
+  try {
+    const result = await runScenario({
+      baseInputs,
+      changes: changes || {},
+      scoreUrl: `${ESTIMATOR_URL}/score`,
+    });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    if (err instanceof ScenarioValidationError) {
+      // Surfaced to the user as "that change is outside the supported range"
+      // rather than being silently clamped into a different question.
+      return res.status(422).json({ success: false, error: err.message, validation: true });
+    }
+    console.error('Scenario execution failed:', err.message);
+    res.status(502).json({
+      success: false,
+      error: `Scenario scoring failed (estimator service at ${ESTIMATOR_URL}): ${err.message}`,
+    });
+  }
+});
+
 // ── EVA planner proxy ─────────────────────────────────────────────────────────
 // Forwards the retrieval-planning request (user turn + session facts) to the
 // Python EVA service (eva_service/src/routes/plan_route.py) and passes its
@@ -432,7 +495,11 @@ app.listen(PORT, () => {
   console.log(`  GET    /api/health`);
   console.log(`  POST   /api/score  →  proxies to ${ESTIMATOR_URL}/score  (authenticated)`);
   console.log(`  POST   /api/eva/plan  →  proxies to ${EVA_URL}/api/eva/plan  (authenticated)`);
-  console.log(`  POST   /api/eva    →  proxies to ${EVA_URL}/api/eva  (authenticated)\n`);
+  console.log(`  POST   /api/eva    →  proxies to ${EVA_URL}/api/eva  (authenticated)`);
+  console.log(`  POST   /internal/estimator/scenario  (internal key; called by eva_service)\n`);
+  if (!process.env.INTERNAL_API_KEY) {
+    console.warn('⚠️  INTERNAL_API_KEY is not set — using an insecure dev default for /internal/* routes.');
+  }
   if (!process.env.JWT_SECRET) {
     console.log('⚠️  Run `node scripts/seed_users.mjs` once to create demo login accounts.\n');
   }

@@ -9,6 +9,7 @@ import logging
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from ..agents.estimator_context import is_estimate_question, sanitize_estimator_context
 from ..agents.graph import get_eva_graph
 from ..cache.semantic_cache import SemanticCache
 from ..config import settings
@@ -34,6 +35,11 @@ class ChatRequest(BaseModel):
     # useEVA.js) — the long-term-memory scope. Optional: requests without
     # one simply get no long-term memory, same as before this feature.
     clientId: str | None = None
+    # Snapshot of the estimate the user is currently viewing (null on
+    # non-estimator pages). UNTRUSTED client input: it is sanitized against
+    # the gateway-verified callerRole before entering the graph, and never
+    # influences authorization.
+    estimatorContext: dict | None = None
 
 
 def handle_chat(req: ChatRequest) -> dict:
@@ -41,6 +47,13 @@ def handle_chat(req: ChatRequest) -> dict:
     embeddings, provider_key = get_embeddings(settings)
     provider = provider_key.split("::", 1)[0]
     cache = SemanticCache(settings.cache_similarity_threshold)
+
+    # Answers grounded in the live estimate must never be cached or served
+    # from cache: the cache key is (role, unit, provider), so "what is my
+    # cost?" asked against a since-edited estimate would otherwise return
+    # the previous estimate's number. Estimate-specific turns bypass the
+    # cache entirely in both directions.
+    estimate_scoped = bool(req.estimatorContext) and is_estimate_question(req.message, None)
 
     with session_scope() as session:
         cache_result = cache.lookup(
@@ -52,7 +65,7 @@ def handle_chat(req: ChatRequest) -> dict:
             embeddings=embeddings,
         )
 
-        if cache_result.hit:
+        if cache_result.hit and not estimate_scoped:
             cache.record_hit(session, cache_result.hit)
             session_id = _ensure_session(session, req.sessionId, req.callerRole, req.unitId, req.clientId)
             citations = json.loads(cache_result.hit.citations)
@@ -113,6 +126,10 @@ def handle_chat(req: ChatRequest) -> dict:
             "embeddings": embeddings,
             "provider_key": provider_key,
             "session": session,
+            # Sanitized against the gateway-verified role BEFORE it can reach
+            # the graph or the LLM — the client cannot widen its own access
+            # by stuffing rate figures into this blob.
+            "estimator_context": sanitize_estimator_context(req.estimatorContext, req.callerRole),
             "agent_trail": [],
         }
         final_state = get_eva_graph().invoke(initial_state)
@@ -143,21 +160,23 @@ def handle_chat(req: ChatRequest) -> dict:
         # lookup miss above, no re-embedding. Restricted-reply answers are
         # cached too (scoped by caller_role, so this never leaks across
         # roles — a differently-privileged caller gets its own cache miss
-        # and its own role-gate evaluation).
-        cache.write(
-            session,
-            query_text=req.message,
-            query_embedding_bytes=cache_result.query_embedding_bytes,
-            embedding_provider=provider,
-            embedding_model=provider_key.split("::", 1)[1],
-            answer_text=answer_text,
-            citations=citations,
-            caller_role=req.callerRole,
-            unit_id=req.unitId,
-            subdivision=filters.get("subdivision"),
-            document_class=filters.get("document_class"),
-            intent=plan.get("intent"),
-        )
+        # and its own role-gate evaluation). Estimate-scoped answers are
+        # NOT cached: they're only true for one particular estimate.
+        if not estimate_scoped:
+            cache.write(
+                session,
+                query_text=req.message,
+                query_embedding_bytes=cache_result.query_embedding_bytes,
+                embedding_provider=provider,
+                embedding_model=provider_key.split("::", 1)[1],
+                answer_text=answer_text,
+                citations=citations,
+                caller_role=req.callerRole,
+                unit_id=req.unitId,
+                subdivision=filters.get("subdivision"),
+                document_class=filters.get("document_class"),
+                intent=plan.get("intent"),
+            )
 
     return {
         "answer": answer_text,

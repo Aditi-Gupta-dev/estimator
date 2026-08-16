@@ -1,19 +1,29 @@
+import { useState } from 'react';
 import {
-  IconCoin, IconUsers, IconAlertTriangle, IconListCheck, IconGauge,
+  IconUsers, IconListCheck, IconGauge, IconFlask,
 } from '@tabler/icons-react';
 import { GENERIC_RISK_REGISTER } from '../../constants/estimator-template';
-import { EstimatorInfoTip } from './EstimatorInfoTip';
+import { EstimateHealthCard } from './EstimateHealthCard';
+import { CostRiskDriversSection } from './CostRiskDriversSection';
+import { HistoricalBenchmarkCard } from './HistoricalBenchmarkCard';
+import { CoverageRatioCard } from './CoverageRatioCard';
+import { CompletenessScoreCard } from './CompletenessScoreCard';
+import { AnomalyReviewCard } from './AnomalyReviewCard';
+import { RiskReductionCard } from './RiskReductionCard';
+import { ScenarioSimulatorPanel } from './ScenarioSimulatorPanel';
 
 const fmt = (n, d = 0) => (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
 const fmtCurrency = (n) => `$${fmt(n / 1000)}k`;
 
-function humanizeFeature(name) {
-  return name.replace(/_/g, ' ');
-}
+export function EstimatorResultsView({
+  result, sectionA, overallComplexity, industry, overrides, componentRows, selectedCount,
+}) {
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
 
-export function EstimatorResultsView({ result }) {
   if (!result) return null;
-  const { bottomUp, ml, similarProjects } = result;
+  const {
+    bottomUp, ml, similarProjects, coverage,
+  } = result;
 
   // bottomUp.componentEffort only has an entry for components the user actually
   // selected (computeBottomUp skips unselected ones) — so its key count is the
@@ -26,7 +36,6 @@ export function EstimatorResultsView({ result }) {
 
   const roleRows = Object.keys(bottomUp.roleAvgFte).sort((a, b) => bottomUp.roleAvgFte[b] - bottomUp.roleAvgFte[a]);
   const maxFte = Math.max(...Object.values(bottomUp.roleAvgFte), 0.01);
-  const maxDriver = Math.max(...ml.topDrivers.map((d) => Math.abs(d.contribution)), 0.001);
 
   return (
     <>
@@ -85,6 +94,49 @@ export function EstimatorResultsView({ result }) {
         </div>
       </div>
 
+      <EstimateHealthCard
+        bottomUp={bottomUp}
+        ml={ml}
+        similarProjects={similarProjects}
+        coverage={coverage}
+        sectionA={sectionA}
+        overallComplexity={overallComplexity}
+      />
+
+      <CostRiskDriversSection
+        bottomUp={bottomUp}
+        ml={ml}
+        coverage={coverage}
+        sectionA={sectionA}
+        overallComplexity={overallComplexity}
+        industry={industry}
+      />
+
+      <HistoricalBenchmarkCard ml={ml} similarProjects={similarProjects} />
+
+      <CoverageRatioCard coverage={coverage} />
+
+      <CompletenessScoreCard
+        sectionA={sectionA}
+        componentRows={componentRows}
+        similarProjects={similarProjects}
+        selectedCount={selectedCount}
+      />
+
+      <AnomalyReviewCard
+        ml={ml}
+        similarProjects={similarProjects}
+        coverage={coverage}
+        componentRows={componentRows}
+      />
+
+      <RiskReductionCard
+        baseline={{
+          industry, overallComplexity, sectionA, overrides,
+        }}
+        baselineResult={result}
+      />
+
       <div className="est-chart-card">
         <h2 className="est-section-h2">
           <IconUsers size={18} color="var(--gold)" />
@@ -100,52 +152,6 @@ export function EstimatorResultsView({ result }) {
             <div className="est-bar-contrib">{bottomUp.roleAvgFte[role].toFixed(2)} FTE</div>
           </div>
         ))}
-      </div>
-
-      <div className="est-chart-card">
-        <h2 className="est-section-h2">
-          <IconAlertTriangle size={18} color="var(--gold)" />
-          Top ML Risk Drivers
-          <span className="est-tag est-tag-ml">This estimate's overrun probability</span>
-        </h2>
-        {ml.topDrivers.map((d) => (
-          <div className="est-bar-row" key={d.feature}>
-            <div className="est-bar-name">{humanizeFeature(d.feature)}</div>
-            <div className="est-bar-track">
-              <div
-                className="est-bar-fill"
-                style={{
-                  width: `${Math.min(100, (Math.abs(d.contribution) / maxDriver) * 100)}%`,
-                  background: d.contribution >= 0 ? 'var(--danger)' : 'var(--green)',
-                }}
-              />
-            </div>
-            <div className="est-bar-contrib">{d.contribution >= 0 ? '+' : ''}{d.contribution.toFixed(2)}</div>
-          </div>
-        ))}
-
-        <h2 className="est-section-h2" style={{ marginTop: 18 }}>
-          <IconCoin size={18} color="var(--gold)" />
-          Most Similar Past Projects
-        </h2>
-        <table className="est-table est-table-compact">
-          <thead>
-            <tr><th>Project</th><th>Industry</th><th>Complexity</th><th>Deviation</th><th>Health</th></tr>
-          </thead>
-          <tbody>
-            {similarProjects.map((p) => (
-              <tr key={p.project_id}>
-                <td>{p.project_id}</td>
-                <td>{p.industry}</td>
-                <td>{p.complexity}</td>
-                <td className={p.overrun_flag ? 'est-dev-over' : 'est-dev-under'}>
-                  {p.deviation_pct >= 0 ? '+' : ''}{p.deviation_pct.toFixed(1)}%
-                </td>
-                <td>{p.health}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
       <div className="est-chart-card">
@@ -171,6 +177,21 @@ export function EstimatorResultsView({ result }) {
           </tbody>
         </table>
       </div>
+
+      {simulatorOpen ? (
+        <ScenarioSimulatorPanel
+          baseline={{
+            industry, overallComplexity, sectionA, overrides,
+          }}
+          baselineResult={result}
+          onClose={() => setSimulatorOpen(false)}
+        />
+      ) : (
+        <button className="est-run-btn est-scenario-open-btn" onClick={() => setSimulatorOpen(true)}>
+          <IconFlask size={16} />
+          Open Scenario Simulator
+        </button>
+      )}
     </>
   );
 }

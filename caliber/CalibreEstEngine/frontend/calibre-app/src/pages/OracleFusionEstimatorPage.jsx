@@ -1,7 +1,10 @@
+import { useEffect } from 'react';
 import { IconArrowLeft, IconCalculator } from '@tabler/icons-react';
 import { useNavigate } from 'react-router-dom';
 import '../styles/estimator.css';
 import { useEstimator } from '../hooks/useEstimator';
+import { useEstimatorContext } from '../contexts/EstimatorContextProvider';
+import { buildEstimatorContext } from '../lib/estimatorContext';
 import { EstimatorGlobalParamsForm } from '../components/estimator/EstimatorGlobalParamsForm';
 import { EstimatorComponentGrid } from '../components/estimator/EstimatorComponentGrid';
 import { EstimatorResultsView } from '../components/estimator/EstimatorResultsView';
@@ -17,9 +20,35 @@ export function OracleFusionEstimatorPage() {
   const estimator = useEstimator();
   const {
     step, setStep, industry, setIndustry, overallComplexity, setOverallComplexity,
-    sectionA, updateSectionA, componentRows, updateOverride, setIncludedForComponents, selectedCount,
+    sectionA, updateSectionA, overrides, componentRows, updateOverride, setIncludedForComponents, selectedCount,
     isLoading, error, result, runEstimate,
   } = estimator;
+  const { publishEstimatorContext, clearEstimatorContext } = useEstimatorContext();
+
+  // Keep EVA's snapshot current without firing any request (spec §11) — the
+  // next EVA turn simply reads whatever is latest. Cleared on unmount so
+  // non-estimator pages send estimatorContext: null.
+  useEffect(() => {
+    if (!result) {
+      clearEstimatorContext();
+      return;
+    }
+    publishEstimatorContext(buildEstimatorContext({
+      estimateId: result.estimateId,
+      result,
+      sectionA,
+      overallComplexity,
+      industry,
+      overrides,
+      componentRows,
+      selectedCount,
+    }));
+  }, [
+    result, sectionA, overallComplexity, industry, overrides, componentRows, selectedCount,
+    publishEstimatorContext, clearEstimatorContext,
+  ]);
+
+  useEffect(() => clearEstimatorContext, [clearEstimatorContext]);
 
   return (
     <div className="est-page">
@@ -92,7 +121,17 @@ export function OracleFusionEstimatorPage() {
           {!isLoading && !error && !result && (
             <div className="est-empty">Set parameters and components, then run the estimate.</div>
           )}
-          {!isLoading && !error && result && <EstimatorResultsView result={result} />}
+          {!isLoading && !error && result && (
+            <EstimatorResultsView
+              result={result}
+              sectionA={sectionA}
+              overallComplexity={overallComplexity}
+              industry={industry}
+              overrides={overrides}
+              componentRows={componentRows}
+              selectedCount={selectedCount}
+            />
+          )}
         </>
       )}
     </div>

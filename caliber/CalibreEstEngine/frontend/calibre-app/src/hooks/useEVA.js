@@ -11,6 +11,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRoleContext } from '../contexts/RoleContext';
+import { useEstimatorContext } from '../contexts/EstimatorContextProvider';
 import { SUGGESTIONS, RESTRICTED_REPLY } from '../constants/eva-responses';
 import {
   EVA_SYSTEM_PROMPT,
@@ -78,6 +79,7 @@ export function formatEVAText(text) {
 // ── EVA hook ──────────────────────────────────────────────────────────────────
 export function useEVA() {
   const { currentRole, currentRoleId, activeUnitId } = useRoleContext();
+  const { hasContext: hasEstimatorContext, getEstimatorContext } = useEstimatorContext();
   const [isOpen, setIsOpen]     = useState(false);
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
@@ -139,6 +141,9 @@ export function useEVA() {
           sessionId:      sessionIdRef.current,
           clientId:       clientIdRef.current,
           rollingSummary,
+          // Null on non-estimator pages. Read at send time from a ref, so
+          // estimator edits never re-render or re-request anything.
+          estimatorContext: getEstimatorContext(),
         }),
       });
 
@@ -175,7 +180,7 @@ export function useEVA() {
     } finally {
       setIsTyping(false);
     }
-  }, [currentRoleId, activeUnitId, messages]);
+  }, [currentRoleId, activeUnitId, messages, getEstimatorContext]);
 
   const sendRestrictedMessage = useCallback((cardTitle) => {
     openEVA();
@@ -203,6 +208,7 @@ export function useEVA() {
     isOpen, toggleEVA, openEVA, closeEVA,
     messages, sendMessage, sendRestrictedMessage, clearChat,
     isTyping, mode, setMode, suggestions,
+    hasEstimatorContext,
     // Expose for debugging / LLM integration
     systemPrompt:        EVA_SYSTEM_PROMPT,
     systemPromptVersion: EVA_PROMPT_VERSION,

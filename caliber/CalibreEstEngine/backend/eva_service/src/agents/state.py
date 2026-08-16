@@ -54,6 +54,20 @@ class EvaGraphState(TypedDict, total=False):
     retrieved: list        # list[RetrievedChunk]
     is_restricted: bool
 
+    # ── live estimator context (the estimate the user is looking at) ────────
+    # Sanitized in chat_route.py before it ever enters the graph — see
+    # agents/estimator_context.py sanitize_estimator_context(). None when the
+    # user isn't on the estimator page.
+    estimator_context: dict | None
+    estimator_blocks: list  # list[{title, text}] selected for this turn
+
+    # ── what-if scenarios (executed by the real engine, never predicted) ────
+    scenario_request: dict | None   # the validated change set that was applied
+    scenario_result: dict | None    # {current, scenario, delta} from the runner
+    scenario_error: str | None      # machine code, e.g. "unsupported_change"
+    scenario_error_detail: str | None
+    risk_reduction: list            # candidates that measurably reduced risk
+
     # ── estimate tool ────────────────────────────────────────────────────────
     score_request: dict | None
     score_result: dict | None  # raw /score JSON: {ml_calibration, similar_projects}
