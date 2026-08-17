@@ -11,6 +11,7 @@ import { KHContentGrid } from '../components/knowledge/KHContentGrid';
 import { KHRightPanel } from '../components/knowledge/KHRightPanel';
 import { KHDetailModal } from '../components/knowledge/KHDetailModal';
 import { KHUploadModal } from '../components/knowledge/KHUploadModal';
+import { DocumentGovernancePanel } from '../components/knowledge/DocumentGovernancePanel';
 import { KHDownloadToast } from '../components/knowledge/KHDownloadToast';
 
 export default function KnowledgeHubPage() {
@@ -48,6 +49,8 @@ export default function KnowledgeHubPage() {
         onToggleView={hub.toggleViewMode}
         canUpload={hub.canUpload}
         onOpenUpload={hub.openUpload}
+        canManageDocuments={hub.canUpload}
+        onOpenGovernance={hub.openGovernance}
         activeFilters={hub.activeFilters}
         onClearAll={hub.clearAllFilters}
         onItemSelect={hub.selectItem}
@@ -147,6 +150,10 @@ export default function KnowledgeHubPage() {
           onClose={hub.closeUpload}
           onUploadComplete={hub.onUploadComplete}
         />
+      )}
+
+      {hub.isGovernanceOpen && (
+        <DocumentGovernancePanel onClose={hub.closeGovernance} />
       )}
 
       <KHDownloadToast

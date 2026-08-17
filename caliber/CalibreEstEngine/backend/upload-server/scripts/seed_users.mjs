@@ -12,7 +12,6 @@ const DEMO_USERS = [
   { name: 'Priya Sharma (Admin Demo)', email: 'admin@calibre.demo', role: 'admin', unit: 'COE', department: 'delivery' },
   { name: 'Arjun Mehta (Super User Demo)', email: 'super@calibre.demo', role: 'super', unit: 'Oracle ERP', department: 'sales' },
   { name: 'Lakshmi Nair (SME Demo)', email: 'sme@calibre.demo', role: 'sme', unit: 'Oracle ERP', department: 'delivery' },
-  { name: 'Vikram Rao (Senior Mgmt Demo)', email: 'seniormgmt@calibre.demo', role: 'senior_mgmt', unit: 'Oracle ERP', department: 'delivery' },
   { name: 'Sneha Pillai (Estimator Demo)', email: 'estimator@calibre.demo', role: 'estimator', unit: 'Oracle ERP', department: 'sales' },
 ];
 

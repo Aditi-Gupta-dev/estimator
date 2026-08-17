@@ -33,6 +33,10 @@ export function ScenarioComparisonCard({ baselineResult, scenario }) {
   );
 
   const scenarioMl = scenario.status === 'ready' ? scenario.result.ml : null;
+  // Cost has no local instant value — the browser has no rate card to
+  // compute it with (see estimatorEngine.js) — so, like the ML numbers, it
+  // only appears once the debounced server call resolves.
+  const scenarioCost = scenario.status === 'ready' ? scenario.result.bottomUp.totalCost : null;
   const isPending = scenario.status === 'scoring' || scenario.status === 'idle';
 
   const currentCalibrated = calibratedEffort(baselineResult.bottomUp, baselineResult.ml);
@@ -66,7 +70,8 @@ export function ScenarioComparisonCard({ baselineResult, scenario }) {
           <Row
             label="Total Cost"
             current={fmtCurrency(baselineResult.bottomUp.totalCost)}
-            scenario={fmtCurrency(scenarioBottomUp.totalCost)}
+            scenario={scenarioCost != null ? fmtCurrency(scenarioCost) : '—'}
+            scenarioPending={isPending}
           />
           <Row
             label="Total Avg FTE"

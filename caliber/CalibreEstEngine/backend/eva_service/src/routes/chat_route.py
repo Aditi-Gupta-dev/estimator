@@ -28,6 +28,14 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     message: str
     callerRole: str = "estimator"
+    # Verified session identity, forwarded by upload-server's /api/eva proxy
+    # the same way callerRole is — never taken from the client directly.
+    # Optional/None only for callers that predate this field (there are
+    # none in production; kept optional so a partial deploy fails soft
+    # rather than 422ing every chat turn). Used to attribute estimates
+    # EVA creates/saves on the user's behalf to the real logged-in user.
+    callerUserId: str | None = None
+    callerName: str | None = None
     unitId: str | None = None
     sessionId: str | None = None
     rollingSummary: str | None = None
@@ -118,6 +126,8 @@ def handle_chat(req: ChatRequest) -> dict:
         initial_state = {
             "message": req.message,
             "caller_role": req.callerRole,
+            "caller_user_id": req.callerUserId,
+            "caller_name": req.callerName,
             "unit_id": req.unitId,
             "rolling_summary": req.rollingSummary,
             "recent_messages": recent_messages,

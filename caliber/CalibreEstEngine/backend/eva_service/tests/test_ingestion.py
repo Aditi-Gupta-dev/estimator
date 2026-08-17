@@ -72,10 +72,9 @@ def test_ingest_document_with_sidecar_and_idempotency(isolated_env):
         assert doc.subdivision == "data"
         assert doc.document_class == "ratecard"
         assert doc.status == "published"
-        # Rate cards are restricted from estimator/senior_mgmt per R5.
+        # Rate cards are restricted from estimator per R5.
         access_roles = json.loads(doc.access_roles)
         assert "estimator" not in access_roles
-        assert "senior_mgmt" not in access_roles
         assert "admin" in access_roles
 
         chunks = session.query(Chunk).filter_by(document_id=doc_id_1).all()

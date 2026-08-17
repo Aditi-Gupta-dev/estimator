@@ -57,7 +57,7 @@ def test_promotion_creates_retrievable_faq_chunk(isolated_env):
             document_class="guideline", program_type=None, file_type="csv",
             original_path="esu/data/crp.csv", markdown_path="markdown/crp.md",
             sidecar_path=None, status="published",
-            access_roles=json.dumps(["admin", "super", "sme", "senior_mgmt", "estimator"]),
+            access_roles=json.dumps(["admin", "super", "sme", "estimator"]),
             version="1.0", content_hash="h",
         )
         session.add(source_doc)
@@ -96,7 +96,7 @@ def test_promotion_creates_retrievable_faq_chunk(isolated_env):
         assert promoted_doc.source == "cache-derived"
         assert promoted_doc.document_class == "faq"
         # Access roles carried forward from the cited source document.
-        assert set(json.loads(promoted_doc.access_roles)) == {"admin", "super", "sme", "senior_mgmt", "estimator"}
+        assert set(json.loads(promoted_doc.access_roles)) == {"admin", "super", "sme", "estimator"}
 
         # Retrievable: a differently-worded but related query should surface
         # the promoted FAQ chunk via the normal candidate-select + retrieve path.

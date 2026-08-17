@@ -96,7 +96,7 @@ def make_ctx(**overrides) -> dict:
 
 # ── Security: rate-card sanitization ────────────────────────────────────────
 
-@pytest.mark.parametrize("role", ["estimator", "senior_mgmt"])
+@pytest.mark.parametrize("role", ["estimator"])
 def test_sanitize_strips_blended_rate_for_restricted_roles(role):
     out = sanitize_estimator_context(make_ctx(), role)
     for row in out["bottomUp"]["topRoles"]:

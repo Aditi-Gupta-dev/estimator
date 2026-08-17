@@ -75,7 +75,7 @@ def _client(monkeypatch, fake_llm):
     )
     from src.main import app
 
-    return TestClient(app)
+    return TestClient(app, headers={"x-internal-key": settings.internal_api_key})
 
 
 def _base_plan(intent: str, **overrides) -> dict:

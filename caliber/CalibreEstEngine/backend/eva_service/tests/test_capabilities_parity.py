@@ -95,17 +95,12 @@ def test_scoring_roles_unchanged(role):
     assert role_can(role, Capability.SCENARIO_RUN)
 
 
-def test_senior_mgmt_cannot_score_or_run_scenarios():
-    assert not role_can("senior_mgmt", Capability.ESTIMATE_RUN)
-    assert not role_can("senior_mgmt", Capability.SCENARIO_RUN)
-
-
 @pytest.mark.parametrize("role", ["admin", "super", "sme"])
 def test_rate_card_permitted_roles(role):
     assert role_can(role, Capability.RATE_CARD_VIEW)
 
 
-@pytest.mark.parametrize("role", ["estimator", "senior_mgmt"])
+@pytest.mark.parametrize("role", ["estimator"])
 def test_rate_card_restricted_roles(role):
     assert not role_can(role, Capability.RATE_CARD_VIEW)
 
@@ -126,7 +121,7 @@ def test_rate_card_matrix_agrees_with_ingest_time_gating():
 
 def test_only_admin_manages_users():
     assert role_can("admin", Capability.USER_MANAGE)
-    for role in ["super", "sme", "senior_mgmt", "estimator"]:
+    for role in ["super", "sme", "estimator"]:
         assert not role_can(role, Capability.USER_MANAGE)
 
 

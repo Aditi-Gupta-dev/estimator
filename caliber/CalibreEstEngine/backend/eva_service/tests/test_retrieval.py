@@ -70,7 +70,7 @@ def _seed_documents(session):
             status=status,
             access_roles=json.dumps(
                 ["admin", "super", "sme"] if doc_class == "ratecard" else
-                ["admin", "super", "sme", "senior_mgmt", "estimator"]
+                ["admin", "super", "sme", "estimator"]
             ),
             version="1.0",
             content_hash=f"hash{i}",

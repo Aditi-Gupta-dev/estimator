@@ -32,20 +32,12 @@ export const INDUSTRIES = [
 // Applied as a multiplier to a component's unit_effort × volume (Layer 1).
 export const COMPLEXITY_MULT = { L: 0.7, M: 1.0, H: 1.4, VH: 1.9 };
 
-// Blended day-rates per role, used to convert role effort (days) to cost.
-export const RATE_CARD = {
-  'Programme Director': { onshore: 2200, offshore: 900 },
-  'Solution Architect': { onshore: 1800, offshore: 750 },
-  'Functional Lead': { onshore: 1500, offshore: 600 },
-  'Technical Lead': { onshore: 1600, offshore: 650 },
-  'Functional Consultant': { onshore: 1050, offshore: 420 },
-  'Technical Developer': { onshore: 950, offshore: 380 },
-  'Data Migration Specialist': { onshore: 1100, offshore: 440 },
-  'Change Management Lead': { onshore: 1300, offshore: 520 },
-  'Testing Lead': { onshore: 1000, offshore: 400 },
-  'Infrastructure Engineer': { onshore: 1100, offshore: 450 },
-  'Project Manager': { onshore: 1400, offshore: 560 },
-};
+// NOTE: the rate card used to live here as RATE_CARD, but that meant every
+// browser bundle shipped it — including to `estimator`/`senior_mgmt`, the two
+// roles the whole restriction exists to protect from it. It now lives
+// backend-only at backend/upload-server/estimator/rateCard.js, reachable only
+// from Node. computeBottomUp() takes a rateCard argument instead of importing
+// one; browser call sites simply have none to pass, by construction.
 
 // Generic delivery risks that apply regardless of industry (from the
 // uploaded template's own risk register — distinct from the ML model's

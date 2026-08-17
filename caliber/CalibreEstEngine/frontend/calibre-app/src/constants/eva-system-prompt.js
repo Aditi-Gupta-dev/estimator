@@ -49,7 +49,7 @@ export const RESTRICTED_FIELDS = [
   'charge-out rate',
 ];
 
-export const RESTRICTED_ROLES = ['estimator', 'senior_mgmt'];
+export const RESTRICTED_ROLES = ['estimator'];
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  SYSTEM PROMPT
@@ -112,7 +112,7 @@ Access control is enforced at the database query layer; you are the second line,
 Never reproduce, paraphrase, aggregate, or numerically imply the contents of any chunk whose
 metadata carries \`subdivision: data\`, \`sensitivity: restricted\`, or an \`access_roles\` list that
 excludes the caller's role — even if such a chunk reaches you in error. Rate cards, cost rates,
-and margin data are never exposed to the Estimator or Senior Management personas. If asked,
+and margin data are never exposed to the Estimator persona. If asked,
 state that the field is role-restricted and name the approving role. Never say "I retrieved it
 but cannot show it" — say only that it is restricted.
 

@@ -5,15 +5,32 @@
 
 Run with:  uvicorn api:app --host 0.0.0.0 --port 8000
 """
+import os
 from typing import Literal, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from predict import EstimationRiskEngine
 
 app = FastAPI(title="Oracle Fusion Estimation Risk Engine", version="1.0.0")
+
+# This service is internal-only — called by upload-server (Node) and
+# eva_service (Python), never directly by a browser. Same shared-secret
+# architecture as eva_service's src/security/internal_auth.py and
+# upload-server's own /internal/* routes; same env var name and dev
+# default, so an unconfigured local setup keeps working across all three
+# services without any extra setup. /health is deliberately excluded —
+# no identity-bearing data, and nothing needs to probe it pre-authenticated.
+INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "dev-internal-key-change-me")
+
+
+def require_internal_key(x_internal_key: Optional[str] = Header(default=None)) -> None:
+    if not x_internal_key:
+        raise HTTPException(status_code=401, detail="Missing internal authentication header.")
+    if x_internal_key != INTERNAL_API_KEY:
+        raise HTTPException(status_code=403, detail="Invalid internal authentication header.")
 
 # The calibre-app dev server (Vite) and its upload-server proxy (Express) —
 # CORS is only exercised if something calls this service directly from the
@@ -94,7 +111,7 @@ def health():
     }
 
 
-@app.post("/score", response_model=ScoreResponse)
+@app.post("/score", response_model=ScoreResponse, dependencies=[Depends(require_internal_key)])
 def score(request: ScoreRequest):
     if engine is None:
         raise HTTPException(status_code=503, detail="Models not loaded")

@@ -31,6 +31,12 @@ import {
   COMPONENTS,
   SECTION_A_PARAMS,
 } from '../../../frontend/calibre-app/src/constants/estimator-template.js';
+import { RATE_CARD } from './rateCard.js';
+
+// estimator_agents is internal-only and now requires this shared secret —
+// same env var, same dev default, as upload-server's own INTERNAL_API_KEY
+// (index.js) and estimator_agents' own fallback (src/api.py).
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key-change-me';
 
 const COMPLEXITY_CODES = ['L', 'M', 'H', 'VH'];
 const MODULES = [...new Set(COMPONENTS.map((c) => c.module))];
@@ -270,8 +276,10 @@ export async function runScenario({ baseInputs, changes, scoreUrl }) {
     sectionA: inputs.sectionA,
     industry: inputs.industry,
     overallComplexity: inputs.overallComplexity,
+    rateCard: RATE_CARD, // server-side call — cost is authoritative here
     scoreUrl,
     credentials: 'omit', // server-to-server; there is no cookie to send
+    internalKey: INTERNAL_API_KEY,
   });
 
   const [currentScored, scenarioScored] = await Promise.all([

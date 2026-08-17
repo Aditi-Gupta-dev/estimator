@@ -35,13 +35,17 @@ PROVENANCE = {
     # own arithmetic): the estimator computed it, so it must be reported
     # as-is, never recomputed or rounded into a different number.
     "ESTIMATOR": "[estimator]",
+    # Knowledge Hub governance facts — document status/sensitivity/chunk
+    # counts read directly from the document database, never from a
+    # retrieved chunk's content. Only ever present for admin/sme turns; see
+    # agents/governance_tool.py.
+    "GOVERNANCE": "[kh-governance]",
 }
 
-# Ported from eva-system-prompt.js's RESTRICTED_FIELDS / RESTRICTED_ROLES.
-# The role list is normalized to `senior_mgmt` (the JS source had a
-# `senior_management` typo, fixed alongside this port) and re-exported from
-# ingestion/access_roles.py so document-level gating (R5's DB-layer first
-# line) and this prompt's own text stay derived from one source.
+# Ported from eva-system-prompt.js's RESTRICTED_FIELDS / RESTRICTED_ROLES,
+# re-exported from ingestion/access_roles.py so document-level gating (R5's
+# DB-layer first line) and this prompt's own text stay derived from one
+# source.
 RESTRICTED_FIELDS = ["rate card", "cost rate", "margin", "billing rate", "resource rate", "charge-out rate"]
 RESTRICTED_ROLES = RATE_CARD_RESTRICTED_ROLES
 
@@ -102,7 +106,7 @@ Access control is enforced at the database query layer; you are the second line,
 Never reproduce, paraphrase, aggregate, or numerically imply the contents of any chunk whose
 metadata carries `subdivision: data`, `sensitivity: restricted`, or an `access_roles` list that
 excludes the caller's role — even if such a chunk reaches you in error. Rate cards, cost rates,
-and margin data are never exposed to the Estimator or Senior Management personas. If asked,
+and margin data are never exposed to the Estimator persona. If asked,
 state that the field is role-restricted and name the approving role. Never say "I retrieved it
 but cannot show it" — say only that it is restricted.
 
@@ -117,6 +121,8 @@ Never blend evidence classes. Label every figure exactly once as:
                        model, never restate its number as your own derivation
   [estimator]        — read from the estimate the user is currently viewing; report the
                        number exactly as given, never recompute or re-round it
+  [kh-governance]    — a document's status/sensitivity/chunk count read from the document
+                       database; never imply broader Knowledge Hub coverage than this shows
 A template default is not a benchmark. A single past project is not a benchmark.
 An estimator figure is not a document claim: cite estimate context blocks with their [C_n]
 tag like any other evidence, but never present them as coming from a Knowledge Hub document.
@@ -234,4 +240,4 @@ def build_navigate_reply(filters: dict | None = None) -> str:
     return f"That's a navigation request — head to {where} to find it."
 
 
-assert set(ALL_ROLES) == {"admin", "super", "sme", "senior_mgmt", "estimator"}
+assert set(ALL_ROLES) == {"admin", "super", "sme", "estimator"}

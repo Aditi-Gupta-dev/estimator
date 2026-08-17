@@ -12,13 +12,19 @@
 // NOTE: explicit .js extension — this module is imported both by Vite (which
 // accepts either) and directly by the Node gateway's scenario runner (which
 // requires the extension), so the estimator math has exactly one copy.
-import { COMPONENTS, COMPLEXITY_MULT, RATE_CARD } from '../constants/estimator-template.js';
+import { COMPONENTS, COMPLEXITY_MULT } from '../constants/estimator-template.js';
 
 // Node upload-server proxy (see upload-server/index.js POST /api/score),
 // which forwards to the FastAPI estimator_agents service. Hardcoded to match
 // the existing convention in useUpload.js (localhost:3001) rather than
 // introducing a new config pattern for just this one call.
 const SCORE_URL = 'http://localhost:3001/api/score';
+
+// The browser has no rate card to compute cost with (see
+// constants/estimator-template.js) — scoreEstimate() delegates the entire
+// pipeline, cost included, to this authenticated authoritative endpoint
+// instead. See upload-server/estimator/authoritativeEstimate.js.
+const CALCULATE_URL = 'http://localhost:3001/api/estimate/calculate';
 
 const COVERAGE_RATIO_CLIP = [0.75, 2.25];
 
@@ -43,7 +49,15 @@ function extractErrorMessage(data, status) {
 
 // ── Layer 1: bottom-up effort/cost/role-FTE (client-side, mirrors the
 // uploaded Oracle_Fusion_Estimator_v3_1.xlsx template's own formula) ────────
-export function computeBottomUp(overrides, sectionA) {
+//
+// `rateCard` is optional and intentionally so: the browser has no rate card
+// to pass (it was removed from the frontend bundle entirely — see
+// constants/estimator-template.js), so browser-side calls compute effort/
+// FTE/coverage only and get costByRole/totalCost back as null, not a
+// misleading $0. Only server call sites (backend/upload-server/estimator/
+// authoritativeEstimate.js, scenarioRunner.js) pass the real rate card, so
+// cost is genuinely server-authoritative rather than trusted from the client.
+export function computeBottomUp(overrides, sectionA, rateCard = null) {
   let totalBase = 0;
   let totalAdjusted = 0;
   const roleEffort = {};
@@ -73,15 +87,19 @@ export function computeBottomUp(overrides, sectionA) {
   Object.keys(roleEffortWithContingency).forEach((r) => { roleAvgFte[r] = roleEffortWithContingency[r] / workingDaysTotal; });
   const totalAvgFte = Object.values(roleAvgFte).reduce((a, b) => a + b, 0);
 
-  const costByRole = {};
-  let totalCost = 0;
-  Object.keys(roleEffortWithContingency).forEach((role) => {
-    const rate = RATE_CARD[role];
-    const blended = (sectionA.onshore_pct / 100) * rate.onshore + (1 - sectionA.onshore_pct / 100) * rate.offshore;
-    const cost = roleEffortWithContingency[role] * blended;
-    costByRole[role] = { effortDays: roleEffortWithContingency[role], blendedRate: blended, cost };
-    totalCost += cost;
-  });
+  let costByRole = null;
+  let totalCost = null;
+  if (rateCard) {
+    costByRole = {};
+    totalCost = 0;
+    Object.keys(roleEffortWithContingency).forEach((role) => {
+      const rate = rateCard[role];
+      const blended = (sectionA.onshore_pct / 100) * rate.onshore + (1 - sectionA.onshore_pct / 100) * rate.offshore;
+      const cost = roleEffortWithContingency[role] * blended;
+      costByRole[role] = { effortDays: roleEffortWithContingency[role], blendedRate: blended, cost };
+      totalCost += cost;
+    });
+  }
 
   return {
     totalBase, totalAdjusted, contingencyDays, totalWithContingency,
@@ -135,9 +153,9 @@ export function scaleModuleVolumes(overrides, module, factor) {
 // that wants to derive a cache key for an identical set of inputs without
 // actually making the call.
 export function buildScorePayload({
-  overrides, sectionA, industry, overallComplexity,
+  overrides, sectionA, industry, overallComplexity, rateCard = null,
 }) {
-  const bottomUp = computeBottomUp(overrides, sectionA);
+  const bottomUp = computeBottomUp(overrides, sectionA, rateCard);
   const { integCoverageRatio, dmCoverageRatio } = computeCoverageRatios(bottomUp, sectionA);
   const teamSize = Math.max(6, Math.round(bottomUp.totalAvgFte));
 
@@ -164,25 +182,55 @@ export function buildScorePayload({
 }
 
 // The full Layer 1 → Layer 2 pipeline. Throws with a human-readable message
-// (via extractErrorMessage) on any failure — callers decide how to surface
-// that (set an error state, mark a scenario as failed, silently drop a
-// risk-reduction candidate, etc).
-// scoreUrl/credentials default to the browser path (through the authenticated
-// gateway proxy, sending the session cookie). The Node scenario runner passes
-// the estimator service's own URL with credentials omitted, since it is a
-// server-to-server call with no cookie — same function, same contract.
+// on any failure — callers decide how to surface that (set an error state,
+// mark a scenario as failed, silently drop a risk-reduction candidate, etc).
+//
+// Branches on whether a rate card was supplied:
+//  - No rateCard (every browser call site — the frontend bundle has none to
+//    give it): delegates the ENTIRE pipeline, cost included, to the
+//    authenticated /api/estimate/calculate endpoint, which runs this same
+//    Layer 1 → Layer 2 pipeline server-side with the real rate card. The
+//    browser never computes an authoritative cost figure itself.
+//  - rateCard supplied (server call sites only — scenarioRunner.js,
+//    authoritativeEstimate.js): computes Layer 1 locally with the real rate
+//    card, then calls the estimator_agents /score URL directly for Layer 2,
+//    exactly as this function always has.
+//
+// internalKey is estimator_agents' shared internal-auth secret. It is ONLY
+// ever passed by server call sites (alongside rateCard) — the browser has
+// no rate card and therefore never reaches the branch that would send it,
+// so this key can never end up in a request the browser originates.
 export async function scoreEstimate({
-  overrides, sectionA, industry, overallComplexity,
-  scoreUrl = SCORE_URL, credentials = 'include',
+  overrides, sectionA, industry, overallComplexity, rateCard = null,
+  scoreUrl, credentials = 'include', internalKey = null,
 }) {
+  if (!rateCard) {
+    const response = await fetch(scoreUrl || CALCULATE_URL, {
+      method: 'POST',
+      credentials,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        overrides, sectionA, industry, overallComplexity,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) {
+      throw new Error(data.error || `Estimator service returned ${response.status}`);
+    }
+    return data.result;
+  }
+
   const { bottomUp, coverage, payload } = buildScorePayload({
-    overrides, sectionA, industry, overallComplexity,
+    overrides, sectionA, industry, overallComplexity, rateCard,
   });
 
-  const response = await fetch(scoreUrl, {
+  const response = await fetch(scoreUrl || SCORE_URL, {
     method: 'POST',
     credentials,
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(internalKey ? { 'x-internal-key': internalKey } : {}),
+    },
     body: JSON.stringify(payload),
   });
 

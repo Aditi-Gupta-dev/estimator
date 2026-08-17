@@ -72,7 +72,12 @@ def score_project(**kwargs) -> dict:
 def call_estimator_service(payload: dict, timeout: float = 10.0) -> dict:
     """Factored out as its own top-level function so tests can monkeypatch
     it directly instead of mocking HTTP transport."""
-    resp = httpx.post(f"{settings.estimator_service_url}/score", json=payload, timeout=timeout)
+    resp = httpx.post(
+        f"{settings.estimator_service_url}/score",
+        json=payload,
+        headers={"x-internal-key": settings.internal_api_key},
+        timeout=timeout,
+    )
     resp.raise_for_status()
     return resp.json()
 

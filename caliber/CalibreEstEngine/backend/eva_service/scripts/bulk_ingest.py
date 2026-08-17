@@ -10,22 +10,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.config import settings  # noqa: E402
+from src.governance.paths import walk_knowledge_hub  # noqa: E402
 from src.ingestion.converters import SUPPORTED_EXTS  # noqa: E402
 from src.ingestion.pipeline import ingest_document  # noqa: E402
 from src.storage.db import init_db, session_scope  # noqa: E402
-
-
-def walk_knowledge_hub(kh_root: Path):
-    """Same traversal shape as upload-server/index.js's walk(): skip
-    .gitkeep and sidecar .json files, yield (original_path, sidecar_path).
-    """
-    for path in sorted(kh_root.rglob("*")):
-        if path.is_dir():
-            continue
-        if path.name == ".gitkeep" or path.suffix.lower() == ".json":
-            continue
-        sidecar = path.with_name(path.name + ".json")
-        yield path, (sidecar if sidecar.exists() else None)
 
 
 def main():

@@ -5,6 +5,7 @@ one-time backfill script (scripts/bulk_ingest.py), so both paths resolve
 metadata identically.
 """
 import json
+import re
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -24,31 +25,48 @@ FOLDER_TO_UNIT_ID = {
 
 # Ported from useKnowledgeHub.js's deriveTypeFromFilename — used only when
 # no sidecar JSON exists for a file.
+#
+# Matches on whole filename TOKENS, not raw substrings. A naive `"rate" in
+# lower` check classified "Oracle_Fusion_Local_AI_Strategy_1.docx" as a
+# ratecard — "strategy" contains "rate" as a substring (st-RATE-gy) — which
+# both mislabelled an AI strategy document AND wrongly restricted it from
+# estimator/senior_mgmt. Confirmed against the two live "ratecard" rows in
+# the corpus, both duplicates of exactly that file. Word-boundary regex
+# (\b) doesn't fix this on its own: underscores are \w characters, so
+# "fy26_rate_card" has no \b around "rate" either — every filename in this
+# corpus is underscore-delimited. Tokenizing on non-alphanumeric characters
+# is what actually isolates whole words.
+def _tokens(name: str) -> set[str]:
+    return set(re.split(r"[^a-z0-9]+", name.lower())) - {""}
+
+
 def _derive_type_from_filename(name: str, subdivision: str) -> str:
     lower = name.lower()
+    tokens = _tokens(name)
+
     # Rate-card detection runs BEFORE the templates short-circuit. Previously a
     # rate card misfiled under templates/ was classified "template", which
     # derive_access_roles then exposed to all five roles — the one
     # misclassification that leaks commercially sensitive data rather than
     # merely mislabelling it. Fail safe: if it looks like a rate card, treat it
     # as one wherever it sits.
-    if "rate" in lower or "ratecard" in lower or "day rate" in lower:
+    if tokens & {"rate", "rates", "ratecard", "ratecards"} or "day rate" in lower:
         return "ratecard"
     if subdivision == "templates":
         return "template"
     if "guideline" in lower:
         return "guideline"
-    if "pov" in lower or "point of view" in lower:
+    if "pov" in tokens or "point of view" in lower:
         return "pov"
     if "case study" in lower or "casestudy" in lower:
         return "casestudy"
     if "playbook" in lower:
         return "playbook"
-    if "cost" in lower or "card" in lower:
+    if tokens & {"cost", "costs", "card", "cards"}:
         return "ratecard"
     if "benchmark" in lower or "baseline" in lower:
         return "benchmark"
-    if "faq" in lower or "question" in lower:
+    if "faq" in tokens or "question" in lower:
         return "faq"
     if "whitepaper" in lower or "white paper" in lower:
         return "whitepaper"

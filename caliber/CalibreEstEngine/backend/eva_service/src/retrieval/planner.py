@@ -58,7 +58,7 @@ Convert the user turn into a Calibre retrieval plan. Output ONE JSON object. No 
 no markdown fences.
 
 SESSION FACTS
-  role: {caller_role}            # estimator | sme | admin | senior_mgmt | super
+  role: {caller_role}            # estimator | sme | admin | super
   active_unit: {unit_id}         # may be null
   active_estimate_id: {estimate_id}   # may be null
   turn_history_summary: {rolling_summary}   # <=80 tokens

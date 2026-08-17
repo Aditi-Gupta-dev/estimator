@@ -2,7 +2,7 @@ import bcrypt from 'bcrypt';
 import express from 'express';
 import { signToken } from './jwt.js';
 import { AUTH_COOKIE_NAME, requireAuth, requireCapability } from './middleware.js';
-import { CAPABILITIES } from '../../../frontend/calibre-app/src/constants/capabilities.js';
+import { CAPABILITIES, ROLE_CAPABILITIES } from '../../../frontend/calibre-app/src/constants/capabilities.js';
 import {
   createUser,
   deleteUser,
@@ -15,6 +15,20 @@ import {
 } from './users.js';
 
 const router = express.Router();
+
+// The known-role whitelist — derived from the shared capability map's keys
+// rather than hardcoded a third time (roles.js and capabilities.js already
+// define the role set), so it can never silently drift from the source of
+// truth. An unknown role must be rejected outright, not persisted with a
+// role string that then just resolves to zero capabilities everywhere else.
+const VALID_ROLES = new Set(Object.keys(ROLE_CAPABILITIES));
+
+function invalidRoleResponse(role) {
+  return {
+    success: false,
+    error: `Unknown role "${role}". Valid roles: ${[...VALID_ROLES].join(', ')}.`,
+  };
+}
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -74,6 +88,9 @@ router.post('/api/auth/users', requireAuth, requireCapability(CAPABILITIES.USER_
   if (getUserByEmail(email)) {
     return res.status(409).json({ success: false, error: 'A user with this email already exists.' });
   }
+  if (!VALID_ROLES.has(role)) {
+    return res.status(400).json(invalidRoleResponse(role));
+  }
 
   const user = createUser({ name, email, password, role, unit, department, status: status || 'active' });
   res.status(201).json({ success: true, user: toPublicUser(user) });
@@ -83,6 +100,9 @@ router.patch('/api/auth/users/:id', requireAuth, requireCapability(CAPABILITIES.
   const existing = getUserById(req.params.id);
   if (!existing) {
     return res.status(404).json({ success: false, error: 'User not found.' });
+  }
+  if (req.body?.role !== undefined && !VALID_ROLES.has(req.body.role)) {
+    return res.status(400).json(invalidRoleResponse(req.body.role));
   }
 
   const updated = updateUser(req.params.id, req.body || {});

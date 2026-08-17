@@ -22,7 +22,7 @@ db.exec(`
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL,              -- admin | super | sme | senior_mgmt | estimator
+    role TEXT NOT NULL,              -- admin | super | sme | estimator
     unit TEXT,                       -- free text, descriptive only (matches ManageUsersPanel's "unit" field)
     department TEXT NOT NULL,        -- sales | delivery
     status TEXT NOT NULL DEFAULT 'active',  -- active | inactive | pending

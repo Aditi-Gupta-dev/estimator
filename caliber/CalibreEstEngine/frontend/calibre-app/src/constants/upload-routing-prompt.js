@@ -148,7 +148,6 @@ Apply these access rules when routing:
 | Admin / COE       | All BUs + _global         | Immediate     |
 | Super User        | Own BU only (draft)       | Pending COE   |
 | Unit SME          | Own BU only (review note) | No            |
-| Senior Management | None (read-only)          | No            |
 | Estimator         | None (read-only)          | No            |
 
 If the uploading role is "Super User" or "Unit SME", set "status": "draft" in the response.

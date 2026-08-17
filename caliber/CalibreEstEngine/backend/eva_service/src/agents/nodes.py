@@ -21,12 +21,19 @@ from ..retrieval.planner import plan_query
 from ..retrieval.retriever import retrieve as retrieve_chunks
 from ..retrieval.role_gate import filter_retrieved_chunks
 from ..retrieval.short_term_memory import build_rolling_summary
+from ..governance.audit import corpus_metrics
 from ..storage.faiss_manager import get_faiss_manager
 from .capabilities import Capability, denial_message, role_can
+from .governance_tool import select_governance_blocks
 from .estimator_context import (
     format_risk_reduction_block,
     format_scenario_block,
     select_estimator_blocks,
+)
+from .estimate_persistence_tool import (
+    ESTIMATE_MGMT_ERROR_TEXT,
+    format_estimate_mgmt_block,
+    is_estimate_management_question,
 )
 from .scenario_tool import is_scenario_question
 from .state import EvaGraphState, trail_step
@@ -87,8 +94,19 @@ def retrieve_node(state: EvaGraphState) -> dict:
         }
 
     if not candidates:
+        # Honesty guard (spec §7/§16): when nothing published matches, tell
+        # generate_node the REAL corpus coverage so it says "limited
+        # published coverage" instead of implying extensive documentation
+        # exists. Cheap aggregate query, safe for every role — it reveals a
+        # percentage, not which specific documents are being withheld.
+        coverage = corpus_metrics(session)
         return {
             "candidates": [], "retrieved": [], "is_restricted": False,
+            "kh_coverage_note": (
+                f"{coverage['documents']['published']} of {coverage['documents']['total']} "
+                f"Knowledge Hub documents are currently published "
+                f"({coverage['retrievability_pct']}% of indexed content is retrievable)."
+            ),
             "agent_trail": trail_step("retrieve", "No matching documents", ""),
         }
 
@@ -138,6 +156,23 @@ SCENARIO_ERROR_TEXT = {
 }
 
 
+def governance_node(state: EvaGraphState) -> dict:
+    """Read-only Knowledge Hub governance diagnostics — see governance_tool.py.
+    Deterministic DB inspection, no LLM call, no mutation capability."""
+    blocks = select_governance_blocks(
+        state.get("message", ""), state.get("caller_role"), state["session"],
+    )
+    if not blocks:
+        return {
+            "governance_blocks": [],
+            "agent_trail": trail_step("governance", "No governance data used", ""),
+        }
+    return {
+        "governance_blocks": blocks,
+        "agent_trail": trail_step("governance", f"Read {len(blocks)} governance block(s)", ""),
+    }
+
+
 def estimator_context_node(state: EvaGraphState) -> dict:
     """Selects the smallest set of live-estimate blocks that answers the turn.
 
@@ -159,6 +194,14 @@ def estimator_context_node(state: EvaGraphState) -> dict:
         blocks = [{
             "title": "Scenario execution not permitted for this role",
             "text": denial_message(Capability.SCENARIO_RUN),
+        }] + blocks
+
+    if is_estimate_management_question(message) and not role_can(
+        state.get("caller_role"), Capability.ESTIMATE_SAVE
+    ):
+        blocks = [{
+            "title": "Saved-estimate management not permitted for this role",
+            "text": denial_message(Capability.ESTIMATE_SAVE),
         }] + blocks
 
     if not blocks:
@@ -218,6 +261,32 @@ def generate_node(state: EvaGraphState) -> dict:
             provenance="estimator",
         )
 
+    for block in state.get("governance_blocks") or []:
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source=f"Knowledge Hub Governance — {block['title']}",
+            text=block["text"],
+            title="Knowledge Hub Governance (document database)",
+            section_path=block["title"],
+            document_class="governance",
+            provenance="governance",
+        )
+
+    # Honesty guard from retrieve_node: nothing published matched this query.
+    # Told to the model as evidence so it states the real coverage instead of
+    # implying the Hub is well-stocked on the topic (spec §7/§16).
+    kh_coverage_note = state.get("kh_coverage_note")
+    if kh_coverage_note:
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source="Knowledge Hub coverage (no published match for this query)",
+            text=kh_coverage_note,
+            title="Knowledge Hub Coverage",
+            section_path="coverage",
+            document_class="governance",
+            provenance="governance",
+        )
+
     # A scenario that could not be run must be explained, not silently
     # dropped — otherwise the model fills the gap with a guess.
     scenario_error = state.get("scenario_error")
@@ -254,6 +323,32 @@ def generate_node(state: EvaGraphState) -> dict:
             text=format_risk_reduction_block(risk_reduction),
             title="Risk-reduction Options",
             section_path="risk_reduction",
+            document_class="estimator",
+            provenance="estimator",
+        )
+
+    estimate_mgmt_error = state.get("estimate_mgmt_error")
+    if estimate_mgmt_error:
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source="Saved-estimate management (not completed)",
+            text=ESTIMATE_MGMT_ERROR_TEXT.get(
+                estimate_mgmt_error, ESTIMATE_MGMT_ERROR_TEXT["service_unavailable"],
+            ).format(detail=state.get("estimate_mgmt_error_detail") or ""),
+            title="Saved-estimate Action Unavailable",
+            section_path="estimate_mgmt_error",
+            document_class="estimator",
+            provenance="estimator",
+        )
+
+    estimate_mgmt_result = state.get("estimate_mgmt_result")
+    if estimate_mgmt_result:
+        _append_synthetic(
+            context_chunks, synthetic_citations,
+            source="Saved-estimate management (executed by upload-server's estimate persistence layer)",
+            text=format_estimate_mgmt_block(state.get("estimate_mgmt_action"), estimate_mgmt_result),
+            title="Saved-estimate Action Result",
+            section_path="estimate_mgmt",
             document_class="estimator",
             provenance="estimator",
         )

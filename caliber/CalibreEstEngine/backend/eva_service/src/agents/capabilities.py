@@ -13,6 +13,12 @@ EVA uses this to decide which TOOLS a turn may reach. It is defence in depth,
 not the only defence: upload-server re-checks the same capability on
 /internal/estimator/scenario, so even a jailbroken model cannot execute a
 scenario for a role that isn't permitted one.
+
+RBAC model: 4 roles — admin, super, sme, estimator. `super` is the primary
+Reviewer authority (holds ESTIMATE_APPROVE); there is no separate reviewer
+role. A fifth role, senior_mgmt, existed historically and was removed —
+role_can() fails closed for any role not in ROLE_CAPABILITIES, so an unknown
+role (including a removed one) is never granted anything.
 """
 
 
@@ -20,6 +26,8 @@ class Capability:
     ESTIMATE_RUN = "estimate.run"
     ESTIMATE_VIEW_DETAIL = "estimate.view.detail"
     SCENARIO_RUN = "scenario.run"
+    ESTIMATE_SAVE = "estimate.save"
+    ESTIMATE_APPROVE = "estimate.approve"
     RATE_CARD_VIEW = "ratecard.view"
     KNOWLEDGE_VIEW = "knowledge.view"
     KNOWLEDGE_UPLOAD = "knowledge.upload"
@@ -34,6 +42,7 @@ class Capability:
 ROLE_CAPABILITIES: dict[str, list[str]] = {
     "admin": [
         Capability.ESTIMATE_RUN, Capability.ESTIMATE_VIEW_DETAIL, Capability.SCENARIO_RUN,
+        Capability.ESTIMATE_SAVE, Capability.ESTIMATE_APPROVE,
         Capability.RATE_CARD_VIEW,
         Capability.KNOWLEDGE_VIEW, Capability.KNOWLEDGE_UPLOAD, Capability.KNOWLEDGE_REVIEW,
         Capability.EXECUTIVE_ANALYTICS_VIEW, Capability.PLATFORM_ANALYTICS_VIEW,
@@ -43,6 +52,7 @@ ROLE_CAPABILITIES: dict[str, list[str]] = {
     ],
     "super": [
         Capability.ESTIMATE_RUN, Capability.ESTIMATE_VIEW_DETAIL, Capability.SCENARIO_RUN,
+        Capability.ESTIMATE_SAVE, Capability.ESTIMATE_APPROVE,
         Capability.RATE_CARD_VIEW,
         Capability.KNOWLEDGE_VIEW, Capability.KNOWLEDGE_UPLOAD,
         Capability.EXECUTIVE_ANALYTICS_VIEW,
@@ -50,18 +60,15 @@ ROLE_CAPABILITIES: dict[str, list[str]] = {
     ],
     "sme": [
         Capability.ESTIMATE_RUN, Capability.ESTIMATE_VIEW_DETAIL, Capability.SCENARIO_RUN,
+        Capability.ESTIMATE_SAVE,
         Capability.RATE_CARD_VIEW,
         Capability.KNOWLEDGE_VIEW, Capability.KNOWLEDGE_UPLOAD, Capability.KNOWLEDGE_REVIEW,
         Capability.TECHNICAL_REVIEW,
         Capability.EVA_CHAT,
     ],
-    "senior_mgmt": [
-        Capability.KNOWLEDGE_VIEW, Capability.KNOWLEDGE_UPLOAD,
-        Capability.EXECUTIVE_ANALYTICS_VIEW,
-        Capability.EVA_CHAT,
-    ],
     "estimator": [
         Capability.ESTIMATE_RUN, Capability.ESTIMATE_VIEW_DETAIL, Capability.SCENARIO_RUN,
+        Capability.ESTIMATE_SAVE,
         Capability.KNOWLEDGE_VIEW, Capability.KNOWLEDGE_UPLOAD,
         Capability.EVA_CHAT,
     ],
@@ -93,6 +100,13 @@ CAPABILITY_DENIAL_MESSAGE = {
     Capability.ESTIMATE_VIEW_DETAIL: (
         "The detailed component-level estimator view is not available for this role. Summarise at "
         "the executive level: effort, cost, FTE, risk band and planning range."
+    ),
+    Capability.ESTIMATE_SAVE: (
+        "Creating, updating, or saving persisted estimates is not available for this role. Offer to "
+        "discuss an existing saved estimate instead."
+    ),
+    Capability.ESTIMATE_APPROVE: (
+        "Approving or rejecting a submitted estimate is not available for this role."
     ),
 }
 

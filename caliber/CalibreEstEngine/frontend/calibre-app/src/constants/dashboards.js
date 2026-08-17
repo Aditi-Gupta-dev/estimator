@@ -57,20 +57,6 @@ export const DASHBOARDS = {
     ],
   },
 
-  senior_mgmt: {
-    title: 'Executive Overview',
-    tagline: 'Decide with effort, cost and risk at a glance.',
-    // Deliberately excludes the estimator workspace and any rate figure.
-    sources: ['executiveSummary'],
-    quickActions: [
-      { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
-      { label: 'ROI & Cost', to: '/estimate/roi-cost' },
-    ],
-    unavailable: [
-      { label: 'Portfolio of programme estimates', reason: PERSISTENCE_NOTE },
-    ],
-  },
-
   estimator: {
     title: 'Estimation Workspace',
     tagline: 'Build accurate, defensible estimates.',

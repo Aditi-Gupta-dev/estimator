@@ -58,8 +58,8 @@ check('rejects a request with no internal key',
   (await post({ callerRole: 'estimator', baseInputs, changes: {} }, null)).status === 401);
 check('rejects a wrong internal key',
   (await post({ callerRole: 'estimator', baseInputs, changes: {} }, 'nope')).status === 401);
-check('applies the same role gate as /api/score (senior_mgmt blocked)',
-  (await post({ callerRole: 'senior_mgmt', baseInputs, changes: {} })).status === 403);
+check('applies the same role gate as /api/score (unknown role blocked)',
+  (await post({ callerRole: 'guest', baseInputs, changes: {} })).status === 403);
 
 console.log('\nValidation');
 check('rejects an unknown change key',

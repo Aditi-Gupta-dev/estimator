@@ -124,6 +124,9 @@ export function useKnowledgeHub() {
   // ── Upload modal ──────────────────────────────────────────────────────────
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
+  // ── Document governance panel ─────────────────────────────────────────────
+  const [isGovernanceOpen, setIsGovernanceOpen] = useState(false);
+
   // ── Right panel visibility ────────────────────────────────────────────────
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(true);
 
@@ -365,6 +368,14 @@ export function useKnowledgeHub() {
 
   const closeUpload = useCallback(() => setIsUploadOpen(false), []);
 
+  // Same capability as canUpload (KNOWLEDGE_REVIEW) — publishing/archiving/
+  // reclassifying is a curation action, not a broader permission.
+  const openGovernance = useCallback(() => {
+    if (canReviewKnowledge) setIsGovernanceOpen(true);
+  }, [canReviewKnowledge]);
+
+  const closeGovernance = useCallback(() => setIsGovernanceOpen(false), []);
+
   const toggleViewMode = useCallback(() => {
     setViewMode((prev) => (prev === 'grid' ? 'list' : 'grid'));
   }, []);
@@ -471,6 +482,7 @@ export function useKnowledgeHub() {
     // Modals
     modalItem, openModal, closeModal,
     isUploadOpen, openUpload, closeUpload, canUpload,
+    isGovernanceOpen, openGovernance, closeGovernance,
 
     // Download
     downloadItem, downloadCounts, activeDownload, dismissDownload,

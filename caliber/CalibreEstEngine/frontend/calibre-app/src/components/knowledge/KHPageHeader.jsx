@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react';
 import {
-  IconSearch, IconX, IconUpload, IconLayoutGrid, IconList,
+  IconSearch, IconX, IconUpload, IconLayoutGrid, IconList, IconFiles,
 } from '@tabler/icons-react';
 import { KHSearchOverlay } from './KHSearchOverlay';
 
@@ -10,6 +10,7 @@ export function KHPageHeader({
   visibleSubdivisions, activeSubdivision, onSelectSubdivision, subdivisionCounts,
   viewMode, onToggleView,
   canUpload, onOpenUpload,
+  canManageDocuments, onOpenGovernance,
   activeFilters, onClearAll,
   onItemSelect, selectedUnitId,
   openEVA,
@@ -122,6 +123,13 @@ export function KHPageHeader({
           >
             <IconList size={15} />
           </button>
+
+          {canManageDocuments && (
+            <button id="kh-governance-btn" className="kh-upload-btn" onClick={onOpenGovernance}>
+              <IconFiles size={14} />
+              Manage Documents
+            </button>
+          )}
 
           {canUpload && (
             <button id="kh-upload-btn" className="kh-upload-btn" onClick={onOpenUpload}>

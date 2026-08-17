@@ -28,6 +28,12 @@ class EvaGraphState(TypedDict, total=False):
     # ── request-scoped input (set once before invoke) ──────────────────────
     message: str
     caller_role: str
+    # Verified session identity (see chat_route.py's ChatRequest) — used only
+    # to attribute estimates EVA creates/saves to the real user. Not a
+    # broader identity/authorization overhaul: every authorization decision
+    # in this graph still runs on caller_role via capabilities.py, unchanged.
+    caller_user_id: str | None
+    caller_name: str | None
     unit_id: str | None
     rolling_summary: str | None  # deprecated client-supplied fallback — see recent_messages
 
@@ -61,6 +67,13 @@ class EvaGraphState(TypedDict, total=False):
     estimator_context: dict | None
     estimator_blocks: list  # list[{title, text}] selected for this turn
 
+    # ── Knowledge Hub governance diagnostics (read-only, admin/sme only) ────
+    governance_blocks: list  # list[{title, text}] from governance_tool.py
+    # Set by retrieve_node when a query matched nothing published — the real
+    # corpus coverage %, so generate_node can be honest instead of implying
+    # broad documentation exists (spec §7/§16). Available to every role.
+    kh_coverage_note: str | None
+
     # ── what-if scenarios (executed by the real engine, never predicted) ────
     scenario_request: dict | None   # the validated change set that was applied
     scenario_result: dict | None    # {current, scenario, delta} from the runner
@@ -72,6 +85,14 @@ class EvaGraphState(TypedDict, total=False):
     score_request: dict | None
     score_result: dict | None  # raw /score JSON: {ml_calibration, similar_projects}
     score_missing_fields: list[str]
+
+    # ── persisted estimate management (create/get/update/save/history/compare) ─
+    # Executed by upload-server's estimatesService.js (real DB, real audit
+    # trail), never predicted here — see estimate_persistence_tool.py.
+    estimate_mgmt_action: str | None  # "create" | "get" | "update" | "save" | "history" | "compare"
+    estimate_mgmt_result: dict | None
+    estimate_mgmt_error: str | None
+    estimate_mgmt_error_detail: str | None
 
     # ── generation output ───────────────────────────────────────────────────
     answer_text: str

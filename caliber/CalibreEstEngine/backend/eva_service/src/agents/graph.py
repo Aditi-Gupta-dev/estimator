@@ -7,13 +7,16 @@ from langgraph.graph import END, START, StateGraph
 
 from ..retrieval.planner import INTENT
 from .estimate_tool import estimate_tool_node
+from .estimate_persistence_tool import estimate_management_node, is_estimate_management_question
 from .capabilities import Capability, role_can
 from .estimator_context import is_estimate_question
+from .governance_tool import is_governance_question
 from .scenario_tool import is_scenario_question, scenario_node
 from .nodes import (
     clarify_node,
     estimator_context_node,
     generate_node,
+    governance_node,
     navigate_node,
     out_of_scope_node,
     restricted_node,
@@ -47,6 +50,20 @@ def route_after_retrieve(state: EvaGraphState) -> str:
         return "estimate_tool"
     message = state.get("message", "")
     caller_role = state.get("caller_role")
+    # Knowledge Hub governance diagnostics — checked before the estimator
+    # paths since it's a distinct topic. Gated on capability here too, same
+    # reasoning as the scenario gate: a role without KNOWLEDGE_REVIEW never
+    # reaches the corpus-wide document audit, full stop.
+    if is_governance_question(message) and role_can(caller_role, Capability.KNOWLEDGE_REVIEW):
+        return "governance"
+    # Saved-estimate management (create/get/update/save/history/compare a
+    # PERSISTED estimate) is checked before the scenario/live-draft path —
+    # it names a saved estimate/version/history explicitly, which is a more
+    # specific signal than the generic what-if vocabulary below. Capability
+    # is checked here, same reasoning as the scenario gate: a role without
+    # ESTIMATE_SAVE never reaches the tool at all.
+    if is_estimate_management_question(message) and role_can(caller_role, Capability.ESTIMATE_SAVE):
+        return "estimate_mgmt"
     # A what-if is a write-shaped question about the live estimate, so it is
     # checked before the read-only path (which would otherwise just restate
     # the current numbers at someone asking what would change).
@@ -87,6 +104,12 @@ def route_after_scenario(state: EvaGraphState) -> str:
     return "generate"
 
 
+def route_after_estimate_mgmt(state: EvaGraphState) -> str:
+    if state.get("estimate_mgmt_error") == "no_action_identified":
+        return "clarify"
+    return "generate"
+
+
 def build_eva_graph():
     graph = StateGraph(EvaGraphState)
 
@@ -94,7 +117,9 @@ def build_eva_graph():
     graph.add_node("retrieve", retrieve_node)
     graph.add_node("estimate_tool", estimate_tool_node)
     graph.add_node("estimator_context", estimator_context_node)
+    graph.add_node("governance", governance_node)
     graph.add_node("scenario", scenario_node)
+    graph.add_node("estimate_mgmt", estimate_management_node)
     graph.add_node("generate", generate_node)
     graph.add_node("restricted", restricted_node)
     graph.add_node("clarify", clarify_node)
@@ -108,8 +133,8 @@ def build_eva_graph():
     })
     graph.add_conditional_edges("retrieve", route_after_retrieve, {
         "restricted": "restricted", "estimate_tool": "estimate_tool",
-        "estimator_context": "estimator_context", "scenario": "scenario",
-        "generate": "generate",
+        "estimator_context": "estimator_context", "governance": "governance",
+        "scenario": "scenario", "estimate_mgmt": "estimate_mgmt", "generate": "generate",
     })
     graph.add_conditional_edges("estimate_tool", route_after_estimate_tool, {
         "generate": "generate", "clarify": "clarify",
@@ -117,7 +142,11 @@ def build_eva_graph():
     graph.add_conditional_edges("scenario", route_after_scenario, {
         "generate": "generate", "clarify": "clarify",
     })
+    graph.add_conditional_edges("estimate_mgmt", route_after_estimate_mgmt, {
+        "generate": "generate", "clarify": "clarify",
+    })
     graph.add_edge("estimator_context", "generate")
+    graph.add_edge("governance", "generate")
     graph.add_edge("generate", END)
     graph.add_edge("restricted", END)
     graph.add_edge("clarify", END)

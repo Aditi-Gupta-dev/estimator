@@ -130,7 +130,7 @@ def _seed(session):
         bu_folder="ESU", unit_id="esu", subdivision="data", title="Seeded Doc",
         document_class="guideline", program_type=None, file_type="csv",
         original_path="esu/data/guideline.csv", markdown_path="markdown/x.md",
-        sidecar_path=None, status="published", access_roles=json.dumps(["admin", "super", "sme", "senior_mgmt", "estimator"]),
+        sidecar_path=None, status="published", access_roles=json.dumps(["admin", "super", "sme", "estimator"]),
         version="1.0", content_hash="h",
     )
     session.add(doc)
@@ -149,7 +149,7 @@ def _client(monkeypatch, fake_llm):
     )
     from src.main import app
 
-    return TestClient(app)
+    return TestClient(app, headers={"x-internal-key": settings.internal_api_key})
 
 
 def test_repeat_question_same_role_hits_cache(isolated_env, monkeypatch):

@@ -19,7 +19,6 @@ const ACCOUNTS = {
   admin: 'admin@calibre.demo',
   super: 'super@calibre.demo',
   sme: 'sme@calibre.demo',
-  senior_mgmt: 'seniormgmt@calibre.demo',
   estimator: 'estimator@calibre.demo',
 };
 
@@ -29,7 +28,6 @@ const EXPECTED = {
   admin:       [true,  true,     true,  true,  true],
   super:       [true,  true,     false, true,  false],
   sme:         [true,  true,     false, true,  false],
-  senior_mgmt: [false, false,    false, true,  false],
   estimator:   [true,  true,     false, true,  false],
 };
 
@@ -108,15 +106,11 @@ for (const [role, email] of Object.entries(ACCOUNTS)) {
 // ── Spoofing: the frontend must not be able to claim a role ────────────────
 console.log('\nspoofing');
 {
-  const cookie = await login(ACCOUNTS.senior_mgmt);
-  // senior_mgmt forging an admin role in the body must still be refused.
-  const res = await fetch(`${BASE}/api/score`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Cookie: cookie },
-    body: JSON.stringify({ ...SCORE_BODY, role: 'admin', callerRole: 'admin' }),
-  });
-  check('senior_mgmt cannot score by forging role in the body', res.status === 403, `(got ${res.status})`);
-
+  // All 4 remaining roles can score, so there is no restricted role left to
+  // prove a body-supplied callerRole forgery against on /api/score directly
+  // — that property is now covered where it actually matters: the eva_service
+  // identity boundary (see test-eva-internal-auth.mjs, added alongside the
+  // shared-secret fix in this phase).
   const scenario = await fetch(`${BASE}/internal/estimator/scenario`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

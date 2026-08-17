@@ -4,8 +4,13 @@
 // existed before: roles.js's PERMISSIONS matrix (46 keys, entirely dead code),
 // roles.js's CARD_ACCESS, and workflows.js's allowedRoles/requiresAdmin. Their
 // disagreement was not academic — PERMISSIONS granted 'eva.ratecards' to all
-// five roles while the backend correctly denied rate cards to estimator and
-// senior_mgmt.
+// roles while the backend correctly denied rate cards to estimator (and, at
+// the time, the now-removed senior_mgmt role).
+//
+// RBAC model: 4 roles — admin, super, sme, estimator. `super` is the primary
+// Reviewer authority (holds ESTIMATE_APPROVE); there is no separate reviewer
+// role. A fifth role, senior_mgmt, existed historically and was removed —
+// unknown roles fail closed (roleCan returns false), never granted access.
 //
 // IMPORTANT: this module is imported by BOTH the React app and the Node
 // gateway (backend/upload-server), the same way scenarioRunner.js imports the
@@ -22,6 +27,8 @@ export const CAPABILITIES = {
   ESTIMATE_RUN: 'estimate.run',                    // execute Layer 1 + /score
   ESTIMATE_VIEW_DETAIL: 'estimate.view.detail',    // 67-component workspace
   SCENARIO_RUN: 'scenario.run',                    // what-if execution
+  ESTIMATE_SAVE: 'estimate.save',                  // create/update/save persisted estimates (own)
+  ESTIMATE_APPROVE: 'estimate.approve',            // workflow transitions (submit -> approved/rejected)
   // Commercially sensitive
   RATE_CARD_VIEW: 'ratecard.view',                 // day rates / blended rates
   // Knowledge Hub
@@ -43,11 +50,12 @@ const C = CAPABILITIES;
 // Seeded to EXACTLY the behaviour the server already enforced before this
 // refactor, so consolidation changes no access decision:
 //   /api/score + /internal/estimator/scenario → admin, super, sme, estimator
-//   rate cards (RATE_CARD_RESTRICTED_ROLES)   → denied to estimator, senior_mgmt
+//   rate cards (RATE_CARD_RESTRICTED_ROLES)   → denied to estimator
 //   /api/auth/users*                          → admin only
 export const ROLE_CAPABILITIES = {
   admin: [
     C.ESTIMATE_RUN, C.ESTIMATE_VIEW_DETAIL, C.SCENARIO_RUN,
+    C.ESTIMATE_SAVE, C.ESTIMATE_APPROVE,
     C.RATE_CARD_VIEW,
     C.KNOWLEDGE_VIEW, C.KNOWLEDGE_UPLOAD, C.KNOWLEDGE_REVIEW,
     C.EXECUTIVE_ANALYTICS_VIEW, C.PLATFORM_ANALYTICS_VIEW, C.TECHNICAL_REVIEW,
@@ -56,6 +64,7 @@ export const ROLE_CAPABILITIES = {
   ],
   super: [
     C.ESTIMATE_RUN, C.ESTIMATE_VIEW_DETAIL, C.SCENARIO_RUN,
+    C.ESTIMATE_SAVE, C.ESTIMATE_APPROVE,
     C.RATE_CARD_VIEW,
     C.KNOWLEDGE_VIEW, C.KNOWLEDGE_UPLOAD,
     C.EXECUTIVE_ANALYTICS_VIEW,
@@ -63,21 +72,15 @@ export const ROLE_CAPABILITIES = {
   ],
   sme: [
     C.ESTIMATE_RUN, C.ESTIMATE_VIEW_DETAIL, C.SCENARIO_RUN,
+    C.ESTIMATE_SAVE,
     C.RATE_CARD_VIEW,
     C.KNOWLEDGE_VIEW, C.KNOWLEDGE_UPLOAD, C.KNOWLEDGE_REVIEW,
     C.TECHNICAL_REVIEW,
     C.EVA_CHAT,
   ],
-  // Executive persona: decision-making view only. No estimator workspace, no
-  // scenario execution, no rate figures — matching the server's existing
-  // exclusion of senior_mgmt from /api/score.
-  senior_mgmt: [
-    C.KNOWLEDGE_VIEW, C.KNOWLEDGE_UPLOAD,
-    C.EXECUTIVE_ANALYTICS_VIEW,
-    C.EVA_CHAT,
-  ],
   estimator: [
     C.ESTIMATE_RUN, C.ESTIMATE_VIEW_DETAIL, C.SCENARIO_RUN,
+    C.ESTIMATE_SAVE,
     C.KNOWLEDGE_VIEW, C.KNOWLEDGE_UPLOAD,
     C.EVA_CHAT,
   ],
@@ -100,6 +103,8 @@ export const CAPABILITY_DENIAL_MESSAGE = {
   [C.ESTIMATE_RUN]: 'Running estimates isn\'t available for your role. You can still review estimate outcomes, risk and historical benchmarks.',
   [C.ESTIMATE_VIEW_DETAIL]: 'The detailed estimator workspace isn\'t available for your role. The executive summary shows effort, cost, FTE and risk.',
   [C.SCENARIO_RUN]: 'Scenario execution isn\'t available for your role. You can still view estimate health, cost drivers and risk analysis.',
+  [C.ESTIMATE_SAVE]: 'Creating or saving estimates isn\'t available for your role. You can still view and discuss existing estimates.',
+  [C.ESTIMATE_APPROVE]: 'Approving or rejecting submitted estimates is restricted to Admin and Delivery Leadership roles.',
   [C.RATE_CARD_VIEW]: 'Rate-card figures are restricted for your role. I can still explain effort, FTE, risk and the cost drivers behind an estimate.',
   [C.USER_MANAGE]: 'User management is restricted to platform administrators.',
   [C.KNOWLEDGE_REVIEW]: 'Curating Knowledge Hub content is restricted to Admin and SME roles.',

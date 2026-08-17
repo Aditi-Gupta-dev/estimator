@@ -46,8 +46,12 @@ class Document(Base):
     original_path: Mapped[str] = mapped_column(String, unique=True)
     markdown_path: Mapped[str] = mapped_column(String)
     sidecar_path: Mapped[str | None] = mapped_column(String, nullable=True)
-    status: Mapped[str] = mapped_column(String, default="draft", index=True)  # draft | published
-    access_roles: Mapped[str] = mapped_column(Text)  # JSON array
+    # Lifecycle — see storage/document_status.py for the state machine.
+    # "draft" remains the physical default so a row inserted before this
+    # column existed (or by any code that doesn't set it) behaves exactly as
+    # it always did: unpublished until someone acts on it.
+    status: Mapped[str] = mapped_column(String, default="draft", index=True)  # draft|in_review|published|archived|rejected
+    access_roles: Mapped[str] = mapped_column(Text)  # JSON array — derived from `sensitivity`, see ingestion/sensitivity.py
     version: Mapped[str | None] = mapped_column(String, nullable=True)
     tags: Mapped[str] = mapped_column(Text, default="[]")  # JSON array
     content_hash: Mapped[str] = mapped_column(String)
@@ -55,6 +59,21 @@ class Document(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    # ── Governance (added after the initial release — see storage/db.py's
+    # _COLUMN_MIGRATIONS for the backfill that populated `sensitivity` on the
+    # 23 pre-existing documents without changing any of their access
+    # decisions) ─────────────────────────────────────────────────────────────
+    sensitivity: Mapped[str | None] = mapped_column(String, index=True, nullable=True)
+    owner_user_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    owner_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_indexed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # NULL = governance fields may still be bootstrapped from the upload
+    # sidecar on ingest (first-ingest convenience). Once an admin acts through
+    # the governance API, this is stamped and the sidecar can never again
+    # silently override status/sensitivity/access_roles — see
+    # ingestion/registrar.py.
+    governance_set_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     chunks: Mapped[list["Chunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
 
@@ -172,3 +191,28 @@ class UserMemory(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     last_used_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     use_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class GovernanceEvent(Base):
+    """The only record of a governance mutation — who changed what on which
+    document, and what it was before. Nothing like this existed anywhere in
+    the app prior to Knowledge Hub governance: admin user-management mutations
+    are logged only to stdout (upload-server), and no table anywhere records
+    an administrative action with an actor. Actor identity comes from the
+    gateway-verified session, passed through the internal proxy call, never
+    from the request body — eva_service has no login system of its own to
+    verify it against.
+    """
+    __tablename__ = "governance_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    document_id: Mapped[str] = mapped_column(String, ForeignKey("documents.id"), index=True)
+    action: Mapped[str] = mapped_column(String, index=True)  # publish|unpublish|archive|revoke|reclassify|reject
+    actor_user_id: Mapped[str] = mapped_column(String)
+    actor_name: Mapped[str] = mapped_column(String)
+    actor_role: Mapped[str] = mapped_column(String)
+    field: Mapped[str | None] = mapped_column(String, nullable=True)  # status | sensitivity | access_roles | owner
+    previous_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)

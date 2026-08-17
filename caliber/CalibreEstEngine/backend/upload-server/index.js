@@ -22,6 +22,8 @@ import { fileURLToPath } from 'url';
 import authRoutes from './auth/routes.js';
 import { requireAuth, requireCapability } from './auth/middleware.js';
 import { runScenario, ScenarioValidationError } from './estimator/scenarioRunner.js';
+import { calculateEstimate } from './estimator/authoritativeEstimate.js';
+import * as estimatesService from './estimator/estimatesService.js';
 import { CAPABILITIES, roleCan } from '../../frontend/calibre-app/src/constants/capabilities.js';
 import { listUsers } from './auth/users.js';
 
@@ -42,9 +44,21 @@ const EVA_URL = process.env.EVA_URL || 'http://localhost:8001';
 
 // ── Internal service-to-service key ───────────────────────────────────────────
 // Guards /internal/* routes, which are called by eva_service (which has no
-// session cookie of its own) rather than by the browser. Dev default matches
-// the JWT_SECRET convention below — warned about loudly at startup.
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || 'dev-internal-key-change-me';
+// session cookie of its own) rather than by the browser, and is now also
+// sent OUTBOUND to eva_service and estimator_agents so they can verify this
+// process is really upload-server. Dev default matches the JWT_SECRET
+// convention above — warned about loudly at startup, and fails startup
+// outright in production (see below).
+const DEV_INTERNAL_API_KEY = 'dev-internal-key-change-me';
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || DEV_INTERNAL_API_KEY;
+
+if (process.env.NODE_ENV === 'production' && INTERNAL_API_KEY === DEV_INTERNAL_API_KEY) {
+  throw new Error(
+    'INTERNAL_API_KEY is missing or still the insecure development default in a production ' +
+    'environment (NODE_ENV=production). Set a real INTERNAL_API_KEY (matching the value ' +
+    'configured for eva_service and estimator_agents) before starting this service.'
+  );
+}
 
 // ── KnowledgeHub root ─────────────────────────────────────────────────────────
 const KH_ROOT = path.resolve(__dirname, '..', 'KnowledgeHub');
@@ -273,7 +287,7 @@ app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
     // it does NOT embed anything (see EVA_RAG_IMPLEMENTATION_PLAN.md).
     fetch(`${EVA_URL}/internal/ingest`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': INTERNAL_API_KEY },
       body: JSON.stringify({ filePath: req.file.path, metadataPath }),
     }).catch((err) => console.warn('EVA ingest trigger failed (non-fatal):', err.message));
 
@@ -310,9 +324,14 @@ app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
 });
 
 // ── List files ────────────────────────────────────────────────────────────────
-app.get('/api/files', requireAuth, (_req, res) => {
+// Previously requireAuth only — ANY logged-in role, including estimator,
+// could enumerate every Knowledge Hub file's metadata, rate cards included.
+// The Knowledge Hub UI filtered rate cards client-side, but the API itself
+// never did; now it does, so a devtools-level bypass gains nothing.
+app.get('/api/files', requireAuth, requireCapability(CAPABILITIES.KNOWLEDGE_VIEW), (req, res) => {
   try {
     const files = [];
+    const canSeeRateCards = roleCan(req.user.role, CAPABILITIES.RATE_CARD_VIEW);
 
     function walk(dir, rel) {
       if (!fs.existsSync(dir)) return;
@@ -333,6 +352,12 @@ app.get('/api/files', requireAuth, (_req, res) => {
               console.error(`Failed to parse metadata for ${entry.name}:`, err.message);
             }
           }
+          // Redact, don't just let the frontend hide — a rate card must
+          // never appear in this response for a role that can't see rate
+          // cards, regardless of what the UI does with it. `continue`, not
+          // `return`: this sits inside walk()'s for-of loop, so `return`
+          // would abort the whole directory walk on the first rate card.
+          if (meta?.type === 'ratecard' && !canSeeRateCards) continue;
           files.push({
             name: entry.name,
             path: relP.replace(/\\/g, '/'),
@@ -361,7 +386,7 @@ app.post('/api/score', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_RUN)
   try {
     const upstream = await fetch(`${ESTIMATOR_URL}/score`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': INTERNAL_API_KEY },
       body: JSON.stringify(req.body),
     });
 
@@ -373,6 +398,36 @@ app.post('/api/score', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_RUN)
     res.json(data);
   } catch (err) {
     console.error('Estimator service unreachable:', err.message);
+    res.status(502).json({
+      success: false,
+      error: `Estimator service unreachable at ${ESTIMATOR_URL}. Is it running?`,
+    });
+  }
+});
+
+// ── Server-authoritative estimate calculation ──────────────────────────────────
+// The browser has no rate card to compute cost with any more (RATE_CARD was
+// removed from the frontend bundle entirely — see estimator/rateCard.js). This
+// is what frontend/calibre-app/src/lib/estimatorEngine.js's scoreEstimate()
+// calls instead of /api/score whenever it has no rate card of its own, i.e.
+// every browser call site. Runs the exact same Layer 1 -> Layer 2 pipeline
+// server-side, with the real rate card, and returns the same result shape
+// /score's client-side assembly always has — so nothing downstream (estimator
+// intelligence, EstimatorResultsView, estimatorContext) needs to change.
+app.post('/api/estimate/calculate', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_RUN), async (req, res) => {
+  const {
+    overrides, sectionA, industry, overallComplexity,
+  } = req.body || {};
+  if (!overrides || !sectionA) {
+    return res.status(400).json({ success: false, error: 'overrides and sectionA are required.' });
+  }
+  try {
+    const result = await calculateEstimate({
+      overrides, sectionA, industry, overallComplexity,
+    }, ESTIMATOR_URL);
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('Authoritative estimate calculation failed:', err.message);
     res.status(502).json({
       success: false,
       error: `Estimator service unreachable at ${ESTIMATOR_URL}. Is it running?`,
@@ -432,6 +487,62 @@ app.get('/api/system/overview', requireAuth, requireCapability(CAPABILITIES.PLAT
   });
 });
 
+// ── Knowledge Hub governance proxies ────────────────────────────────────────
+// Forward to eva_service's /internal/documents* routes (the only place the
+// document lifecycle/sensitivity/chunk-count data lives — this Node process
+// never sees eva_service's SQLite directly). Same trust boundary as the EVA
+// chat proxy below: eva_service has no auth of its own, so requireAuth +
+// requireCapability here IS the real gate.
+app.get('/api/documents', requireAuth, requireCapability(CAPABILITIES.KNOWLEDGE_REVIEW), async (req, res) => {
+  try {
+    const upstream = await fetch(`${EVA_URL}/internal/documents`, {
+      headers: { 'x-internal-key': INTERNAL_API_KEY },
+    });
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) return res.status(upstream.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ success: false, error: `Knowledge Hub service unreachable at ${EVA_URL}. Is it running?` });
+  }
+});
+
+app.get('/api/knowledge/audit', requireAuth, requireCapability(CAPABILITIES.KNOWLEDGE_REVIEW), async (req, res) => {
+  try {
+    const upstream = await fetch(`${EVA_URL}/internal/knowledge/audit`, {
+      headers: { 'x-internal-key': INTERNAL_API_KEY },
+    });
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) return res.status(upstream.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ success: false, error: `Knowledge Hub service unreachable at ${EVA_URL}. Is it running?` });
+  }
+});
+
+app.patch('/api/documents/:id', requireAuth, requireCapability(CAPABILITIES.KNOWLEDGE_REVIEW), async (req, res) => {
+  try {
+    const upstream = await fetch(`${EVA_URL}/internal/documents/${encodeURIComponent(req.params.id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': INTERNAL_API_KEY },
+      // Actor identity is ALWAYS the verified session, never the client body
+      // — the same "spread body then overwrite the trusted fields" pattern
+      // used for callerRole on the EVA proxy below. A forged actorRole in
+      // the request cannot make it into the governance audit trail.
+      body: JSON.stringify({
+        ...req.body,
+        actorUserId: req.user.id,
+        actorName: req.user.name,
+        actorRole: req.user.role,
+      }),
+    });
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) return res.status(upstream.status).json(data);
+    res.json(data);
+  } catch (err) {
+    res.status(502).json({ success: false, error: `Knowledge Hub service unreachable at ${EVA_URL}. Is it running?` });
+  }
+});
+
 // ── Internal: what-if scenario execution (called by eva_service) ──────────────
 // Runs the SAME estimator engine the browser runs (see estimator/scenarioRunner.js
 // — it imports the frontend's own modules) so EVA can answer "what if I increase
@@ -486,6 +597,198 @@ app.post('/internal/estimator/scenario', async (req, res) => {
   }
 });
 
+// ── Estimate persistence ────────────────────────────────────────────────────────
+// Two entry points, one implementation (estimator/estimatesService.js) — same
+// design as /api/score vs /internal/estimator/scenario. The browser calls
+// /api/estimates* with its session cookie; EVA (no cookie of its own) calls
+// /internal/estimates* with the shared INTERNAL_API_KEY and an actor identity
+// that this layer re-validates against ESTIMATE_SAVE, exactly like the
+// scenario endpoint already re-validates SCENARIO_RUN. Ownership (does THIS
+// actor own THIS estimate) is enforced inside estimatesService itself, since
+// ESTIMATE_SAVE only means "may work with persisted estimates in general".
+function actorFromUser(user) {
+  return { userId: user.id, name: user.name, role: user.role };
+}
+
+function sendEstimateError(res, err) {
+  const status = err.status || 502;
+  if (status >= 500) console.error('Estimate operation failed:', err.message);
+  res.status(status).json({ success: false, error: err.message });
+}
+
+app.post('/api/estimates', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), async (req, res) => {
+  try {
+    const { name, businessUnit, inputs } = req.body || {};
+    const estimate = await estimatesService.createEstimate({
+      name, businessUnit, inputs, actor: actorFromUser(req.user),
+    }, ESTIMATOR_URL);
+    res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/estimates', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    res.json({ success: true, estimates: estimatesService.listEstimates(actorFromUser(req.user)) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/estimates/:id', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    res.json({ success: true, estimate: estimatesService.getEstimate(req.params.id, actorFromUser(req.user)) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/estimates/:id/history', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    res.json({ success: true, versions: estimatesService.getEstimateHistory(req.params.id, actorFromUser(req.user)) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/estimates/:id/compare', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const { a, b } = req.query;
+    if (!a || !b) return res.status(400).json({ success: false, error: 'Query params a and b (version numbers) are required.' });
+    res.json({
+      success: true,
+      comparison: estimatesService.compareEstimateVersions(req.params.id, a, b, actorFromUser(req.user)),
+    });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+// PATCH body: { changes, persist }. persist:false (default) computes and
+// returns a proposal without writing — the "show impact" step. persist:true
+// writes a new version — only meant to be sent once the caller has already
+// shown the proposal and the user confirmed it.
+app.patch('/api/estimates/:id', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), async (req, res) => {
+  try {
+    const { changes, persist } = req.body || {};
+    const actor = actorFromUser(req.user);
+    const result = persist
+      ? await estimatesService.saveEstimate({ estimateId: req.params.id, changes, actor }, ESTIMATOR_URL)
+      : await estimatesService.updateEstimate({ estimateId: req.params.id, changes, actor }, ESTIMATOR_URL);
+    res.json({ success: true, persisted: !!persist, result });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/api/estimates/:id/clone', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), async (req, res) => {
+  try {
+    const estimate = await estimatesService.cloneEstimate(req.params.id, actorFromUser(req.user), ESTIMATOR_URL);
+    res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+// Workflow transitions — separate capability (ESTIMATE_APPROVE), since
+// approving/rejecting someone else's submitted estimate is the whole point
+// of a review workflow and must not require owning the estimate. No EVA tool
+// calls this yet in this pass (API-only, ready for a future tool).
+app.patch('/api/estimates/:id/status', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_APPROVE), (req, res) => {
+  try {
+    const { status, reason } = req.body || {};
+    const estimate = estimatesService.setEstimateStatus({
+      estimateId: req.params.id, targetStatus: status, reason, actor: actorFromUser(req.user),
+    });
+    res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+// ── Internal: estimate persistence (called by eva_service) ────────────────────
+function internalActorOrDeny(req, res) {
+  if (req.get('x-internal-key') !== INTERNAL_API_KEY) {
+    res.status(401).json({ success: false, error: 'Invalid internal key.' });
+    return null;
+  }
+  const { actorUserId, actorName, actorRole } = req.body || {};
+  if (!actorUserId || !actorName || !actorRole) {
+    res.status(400).json({ success: false, error: 'actorUserId, actorName and actorRole are required.' });
+    return null;
+  }
+  if (!roleCan(actorRole, CAPABILITIES.ESTIMATE_SAVE)) {
+    res.status(403).json({
+      success: false,
+      error: 'This role is not permitted to create or save estimates.',
+      capability: CAPABILITIES.ESTIMATE_SAVE,
+    });
+    return null;
+  }
+  return { userId: actorUserId, name: actorName, role: actorRole };
+}
+
+app.post('/internal/estimates', async (req, res) => {
+  const actor = internalActorOrDeny(req, res);
+  if (!actor) return;
+  try {
+    const { name, businessUnit, inputs } = req.body || {};
+    const estimate = await estimatesService.createEstimate({ name, businessUnit, inputs, actor }, ESTIMATOR_URL);
+    res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/internal/estimates/:id/get', async (req, res) => {
+  const actor = internalActorOrDeny(req, res);
+  if (!actor) return;
+  try {
+    res.json({ success: true, estimate: estimatesService.getEstimate(req.params.id, actor) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/internal/estimates/:id/update', async (req, res) => {
+  const actor = internalActorOrDeny(req, res);
+  if (!actor) return;
+  try {
+    const { changes, persist } = req.body || {};
+    const result = persist
+      ? await estimatesService.saveEstimate({ estimateId: req.params.id, changes, actor }, ESTIMATOR_URL)
+      : await estimatesService.updateEstimate({ estimateId: req.params.id, changes, actor }, ESTIMATOR_URL);
+    res.json({ success: true, persisted: !!persist, result });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/internal/estimates/:id/history', async (req, res) => {
+  const actor = internalActorOrDeny(req, res);
+  if (!actor) return;
+  try {
+    res.json({ success: true, versions: estimatesService.getEstimateHistory(req.params.id, actor) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/internal/estimates/:id/compare', async (req, res) => {
+  const actor = internalActorOrDeny(req, res);
+  if (!actor) return;
+  try {
+    const { versionA, versionB } = req.body || {};
+    res.json({
+      success: true,
+      comparison: estimatesService.compareEstimateVersions(req.params.id, versionA, versionB, actor),
+    });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
 // ── EVA planner proxy ─────────────────────────────────────────────────────────
 // Forwards the retrieval-planning request (user turn + session facts) to the
 // Python EVA service (eva_service/src/routes/plan_route.py) and passes its
@@ -497,7 +800,7 @@ app.post('/api/eva/plan', requireAuth, async (req, res) => {
     // below for why (this is the actual fix for the R5 role-gating bypass).
     const upstream = await fetch(`${EVA_URL}/api/eva/plan`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': INTERNAL_API_KEY },
       body: JSON.stringify({ ...req.body, callerRole: req.user.role }),
     });
 
@@ -529,11 +832,22 @@ app.post('/api/eva', requireAuth, async (req, res) => {
     // and read rate-card content the UI pretends is locked. callerRole is
     // now always overwritten with the verified session's actual role, never
     // taken from the client, so eva_service's trust in this field is finally
-    // warranted.
+    // warranted. callerUserId/callerName are forwarded the same way (the
+    // verified session's real identity, never taken from the client) so the
+    // estimate persistence tools can attribute created/saved estimates to
+    // the actual logged-in user instead of only knowing their role.
+    //
+    // x-internal-key proves to eva_service that THIS request came from
+    // upload-server at all — without it, eva_service previously trusted
+    // callerRole/callerUserId/callerName from anyone who could reach its
+    // port, regardless of whether upload-server was even involved. This
+    // header is never sent to or readable by the browser.
     const upstream = await fetch(`${EVA_URL}/api/eva`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...req.body, callerRole: req.user.role }),
+      headers: { 'Content-Type': 'application/json', 'x-internal-key': INTERNAL_API_KEY },
+      body: JSON.stringify({
+        ...req.body, callerRole: req.user.role, callerUserId: req.user.id, callerName: req.user.name,
+      }),
     });
 
     const data = await upstream.json().catch(() => ({}));
@@ -582,9 +896,12 @@ app.listen(PORT, () => {
   console.log(`  GET    /api/files             (authenticated)`);
   console.log(`  GET    /api/health`);
   console.log(`  POST   /api/score  →  proxies to ${ESTIMATOR_URL}/score  (authenticated)`);
+  console.log(`  POST   /api/estimate/calculate  (authenticated; server-authoritative cost)`);
+  console.log(`  POST   /api/estimates  |  GET/PATCH /api/estimates/:id  |  GET .../history  |  GET .../compare  |  POST .../clone  |  PATCH .../status  (authenticated)`);
   console.log(`  POST   /api/eva/plan  →  proxies to ${EVA_URL}/api/eva/plan  (authenticated)`);
   console.log(`  POST   /api/eva    →  proxies to ${EVA_URL}/api/eva  (authenticated)`);
-  console.log(`  POST   /internal/estimator/scenario  (internal key; called by eva_service)\n`);
+  console.log(`  POST   /internal/estimator/scenario  (internal key; called by eva_service)`);
+  console.log(`  POST   /internal/estimates*  (internal key; called by eva_service)\n`);
   if (!process.env.INTERNAL_API_KEY) {
     console.warn('⚠️  INTERNAL_API_KEY is not set — using an insecure dev default for /internal/* routes.');
   }

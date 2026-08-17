@@ -7,7 +7,6 @@ import {
   IconCrown,
   IconShield,
   IconTool,
-  IconStar,
   IconCalculator,
   IconCheck,
   IconDots,
@@ -39,11 +38,10 @@ function fromApiUser(u) {
 }
 
 const ROLE_ICONS = {
-  admin:       IconCrown,
-  super:       IconShield,
-  sme:         IconTool,
-  senior_mgmt: IconStar,
-  estimator:   IconCalculator,
+  admin:     IconCrown,
+  super:     IconShield,
+  sme:       IconTool,
+  estimator: IconCalculator,
 };
 
 const UNITS = ['All Units', 'COE', 'Oracle ERP', 'SAP', 'Salesforce'];
