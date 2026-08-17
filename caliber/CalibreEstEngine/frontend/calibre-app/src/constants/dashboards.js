@@ -22,11 +22,12 @@ export const DASHBOARDS = {
     sources: ['systemOverview'],
     quickActions: [
       { label: 'Manage Users', to: null, action: 'manage-users', capability: C.USER_MANAGE },
+      { label: 'Estimates & Reviews', to: null, action: 'my-estimates', capability: C.ESTIMATE_SAVE },
       { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
       { label: 'Open Estimator', to: '/estimate/create', capability: C.ESTIMATE_RUN },
     ],
     unavailable: [
-      { label: 'Estimation activity & portfolio risk mix', reason: PERSISTENCE_NOTE },
+      { label: 'Portfolio risk mix across all estimates', reason: PERSISTENCE_NOTE },
     ],
   },
 
@@ -36,11 +37,9 @@ export const DASHBOARDS = {
     sources: ['currentEstimate', 'knowledgeCounts'],
     quickActions: [
       { label: 'New Estimate', to: '/estimate/create', capability: C.ESTIMATE_RUN },
+      { label: 'Estimates & Reviews', to: null, action: 'my-estimates', capability: C.ESTIMATE_SAVE },
       { label: 'ROI & Cost', to: '/estimate/roi-cost' },
       { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
-    ],
-    unavailable: [
-      { label: 'My opportunities pipeline', reason: PERSISTENCE_NOTE },
     ],
   },
 
@@ -50,10 +49,11 @@ export const DASHBOARDS = {
     sources: ['currentEstimate', 'technicalReview', 'knowledgeCounts'],
     quickActions: [
       { label: 'Open Estimator', to: '/estimate/create', capability: C.ESTIMATE_RUN },
+      { label: 'My Estimates', to: null, action: 'my-estimates', capability: C.ESTIMATE_SAVE },
       { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
     ],
     unavailable: [
-      { label: 'Review queue and sign-off history', reason: PERSISTENCE_NOTE },
+      { label: 'Review queue and sign-off history', reason: 'SME does not hold review/approval authority in Calibre’s workflow — that remains with Reviewer (Super) and Admin.' },
     ],
   },
 
@@ -63,11 +63,9 @@ export const DASHBOARDS = {
     sources: ['currentEstimate', 'knowledgeCounts'],
     quickActions: [
       { label: 'New Estimate', to: '/estimate/create', capability: C.ESTIMATE_RUN },
+      { label: 'My Estimates', to: null, action: 'my-estimates', capability: C.ESTIMATE_SAVE },
       { label: 'ROI & Cost', to: '/estimate/roi-cost' },
       { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
-    ],
-    unavailable: [
-      { label: 'My saved estimates', reason: PERSISTENCE_NOTE },
     ],
   },
 };

@@ -1,0 +1,205 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ESTIMATE REVIEW & APPROVAL — supplementary to document-governance.css.
+   The panel shell / table / kebab-menu / form-modal are all reused verbatim
+   (dg-*) from Document Governance, the closest existing CRUD surface, per
+   the "reuse existing UI patterns" instruction — this file adds only the
+   pieces that pattern doesn't already cover: the extra lifecycle statuses,
+   the reviewer feedback callout, the version-history list, and the
+   notification bell.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Extra status-dot colors (draft/rejected/archived already exist) ────── */
+.dg-status-submitted         { color: var(--cyan); }
+.dg-status-submitted    .dg-dot { background: var(--cyan); }
+.dg-status-under_review      { color: var(--purple); }
+.dg-status-under_review .dg-dot { background: var(--purple); box-shadow: 0 0 6px var(--purple); animation: pulse 2s infinite; }
+.dg-status-changes_requested { color: var(--amber); }
+.dg-status-changes_requested .dg-dot { background: var(--amber); }
+.dg-status-approved          { color: var(--green); }
+.dg-status-approved     .dg-dot { background: var(--green); }
+
+/* ── Panel tabs (My Estimates / Review Queue) ────────────────────────────── */
+.es-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 0 24px 14px;
+  flex-shrink: 0;
+}
+
+.es-tab {
+  padding: 7px 16px;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--tx-base);
+  font-family: var(--font);
+}
+
+.es-tab:hover { color: var(--text-primary); }
+.es-tab.active { color: var(--gold); border-color: var(--gold-border); background: var(--gold-bg); }
+
+/* ── Reviewer feedback callout ───────────────────────────────────────────── */
+.es-feedback {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--amber-bg);
+  border: 1px solid var(--amber-border);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.es-feedback strong { color: var(--amber); font-weight: 700; }
+
+/* ── Version history list ────────────────────────────────────────────────── */
+.es-version-list { display: flex; flex-direction: column; gap: 10px; }
+
+.es-version-item {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+
+.es-version-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.es-version-tag {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.es-version-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+.es-review-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.es-review-row + .es-review-row { border-top: none; padding-top: 4px; margin-top: 4px; }
+
+/* ── Decision buttons (review queue action modal) ────────────────────────── */
+.es-decision-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.es-decision-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--tx-base);
+  font-family: var(--font);
+}
+
+.es-decision-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+.es-decision-btn.selected.approve { border-color: var(--green); color: var(--green); background: rgba(52, 199, 89, 0.1); }
+.es-decision-btn.selected.reject { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
+.es-decision-btn.selected.changes { border-color: var(--amber); color: var(--amber); background: var(--amber-bg); }
+
+/* ── Notification bell (TopBar) ──────────────────────────────────────────── */
+.notif-bell-wrapper { position: relative; }
+
+.notif-bell-btn {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--tx-base);
+  border: 1px solid transparent;
+  background: none;
+}
+
+.notif-bell-btn:hover { color: var(--text-primary); background: var(--surface-3); border-color: var(--border); }
+
+.notif-bell-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.notif-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: rgba(7, 21, 48, 0.98);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  z-index: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  animation: dropdownFadeIn 0.12s ease both;
+}
+
+.notif-dropdown-header {
+  padding: 12px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--surface-3); }
+.notif-item.unread { background: rgba(212, 175, 55, 0.06); }
+
+.notif-item-msg { font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; }
+.notif-item.unread .notif-item-msg { color: var(--text-primary); }
+.notif-item-time { font-size: 10.5px; color: var(--text-muted); margin-top: 3px; font-family: var(--font-mono); }
+
+.notif-empty { padding: 24px 14px; text-align: center; color: var(--text-muted); font-size: 12.5px; }

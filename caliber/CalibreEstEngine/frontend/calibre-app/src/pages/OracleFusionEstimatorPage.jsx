@@ -15,7 +15,7 @@ const TABS = [
   { id: 3, label: '3. Estimate Output' },
 ];
 
-export function OracleFusionEstimatorPage() {
+export function OracleFusionEstimatorPage({ onOpenMyEstimates }) {
   const navigate = useNavigate();
   const estimator = useEstimator();
   const {
@@ -130,6 +130,7 @@ export function OracleFusionEstimatorPage() {
               overrides={overrides}
               componentRows={componentRows}
               selectedCount={selectedCount}
+              onOpenMyEstimates={onOpenMyEstimates}
             />
           )}
         </>

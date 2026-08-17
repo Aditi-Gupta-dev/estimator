@@ -224,12 +224,18 @@ function TechnicalReviewSection() {
   );
 }
 
-export function RoleDashboard({ onManageUsers }) {
+export function RoleDashboard({ onManageUsers, onOpenEstimates }) {
   const { currentRoleId, can } = useRoleContext();
   const navigate = useNavigate();
   const config = dashboardFor(currentRoleId);
 
   const actions = config.quickActions.filter((a) => !a.capability || can(a.capability));
+
+  const handleAction = (a) => {
+    if (a.action === 'manage-users') return onManageUsers?.();
+    if (a.action === 'my-estimates') return onOpenEstimates?.();
+    return navigate(a.to);
+  };
 
   return (
     <div className="dash-grid">
@@ -238,7 +244,7 @@ export function RoleDashboard({ onManageUsers }) {
           <button
             key={a.label}
             className="est-run-btn"
-            onClick={() => (a.action === 'manage-users' ? onManageUsers?.() : navigate(a.to))}
+            onClick={() => handleAction(a)}
           >
             {a.label}
           </button>

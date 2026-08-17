@@ -202,7 +202,7 @@ async function main() {
   const deniedApproveRes = await fetch(`${BASE}/api/estimates/${estimateId}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Cookie: smeCookie },
-    body: JSON.stringify({ status: 'review' }),
+    body: JSON.stringify({ status: 'archived' }),
   });
   check('sme is blocked from ESTIMATE_APPROVE-gated status transitions (403)', deniedApproveRes.status === 403);
 

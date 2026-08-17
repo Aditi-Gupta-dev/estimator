@@ -25,6 +25,7 @@ import { runScenario, ScenarioValidationError } from './estimator/scenarioRunner
 import { calculateEstimate } from './estimator/authoritativeEstimate.js';
 import { redactBottomUpForRole } from './estimator/rateCardRedaction.js';
 import * as estimatesService from './estimator/estimatesService.js';
+import * as reviewService from './estimator/reviewService.js';
 import { CAPABILITIES, roleCan } from '../../frontend/calibre-app/src/constants/capabilities.js';
 import { listUsers } from './auth/users.js';
 
@@ -611,7 +612,11 @@ app.post('/internal/estimator/scenario', async (req, res) => {
 // actor own THIS estimate) is enforced inside estimatesService itself, since
 // ESTIMATE_SAVE only means "may work with persisted estimates in general".
 function actorFromUser(user) {
-  return { userId: user.id, name: user.name, role: user.role };
+  // unit is needed for reviewer scope enforcement (Phase 3 Part 6) — the
+  // rest of the actor shape is unchanged from Phase 1.
+  return {
+    userId: user.id, name: user.name, role: user.role, unit: user.unit ?? null,
+  };
 }
 
 function sendEstimateError(res, err) {
@@ -651,6 +656,15 @@ app.get('/api/estimates/:id', requireAuth, requireCapability(CAPABILITIES.ESTIMA
 app.get('/api/estimates/:id/history', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
   try {
     res.json({ success: true, versions: estimatesService.getEstimateHistory(req.params.id, actorFromUser(req.user)) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/estimates/:id/audit', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const events = estimatesService.getEstimateAuditEvents(req.params.id, actorFromUser(req.user));
+    res.json({ success: true, events });
   } catch (err) {
     sendEstimateError(res, err);
   }
@@ -706,6 +720,128 @@ app.patch('/api/estimates/:id/status', requireAuth, requireCapability(CAPABILITI
       estimateId: req.params.id, targetStatus: status, reason, actor: actorFromUser(req.user),
     });
     res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+// ── Estimate review / approval lifecycle (Phase 3) ──────────────────────────
+// Owner-triggered transitions (submit/resubmit/ping) are gated on
+// ESTIMATE_SAVE, same as every other estimate-mutating route — ownership
+// itself is enforced inside reviewService.js (requireEstimate), not here.
+// Reviewer-triggered actions (assign/start/decide) are gated on
+// REVIEWER_ASSIGN / ESTIMATE_APPROVE — only admin and super hold the
+// latter, matching "SUPER = REVIEWER" (no separate reviewer role exists).
+app.post('/api/estimates/:id/submit', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const estimate = reviewService.submitEstimate({ estimateId: req.params.id, actor: actorFromUser(req.user) });
+    res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/api/estimates/:id/resubmit', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), async (req, res) => {
+  try {
+    const { changes, changeReason } = req.body || {};
+    const estimate = await reviewService.resubmitEstimate({
+      estimateId: req.params.id, changes, changeReason, actor: actorFromUser(req.user),
+    }, ESTIMATOR_URL);
+    res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/api/estimates/:id/ping-reviewer', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const result = reviewService.pingReviewer({ estimateId: req.params.id, actor: actorFromUser(req.user) });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/api/estimates/:id/assign-reviewer', requireAuth, requireCapability(CAPABILITIES.REVIEWER_ASSIGN), (req, res) => {
+  try {
+    const { reviewerUserId } = req.body || {};
+    const assignment = reviewService.assignReviewer({
+      estimateId: req.params.id, reviewerUserId, actor: actorFromUser(req.user),
+    });
+    res.json({ success: true, assignment });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/estimates/:id/assignment', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const assignment = reviewService.getAssignment(req.params.id, actorFromUser(req.user));
+    res.json({ success: true, assignment });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/estimates/:id/reviews', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const reviews = reviewService.listReviews(req.params.id, actorFromUser(req.user));
+    res.json({ success: true, reviews });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/api/estimates/:id/review/start', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_APPROVE), (req, res) => {
+  try {
+    const estimate = reviewService.startReview({ estimateId: req.params.id, actor: actorFromUser(req.user) });
+    res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/api/estimates/:id/review/decision', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_APPROVE), (req, res) => {
+  try {
+    const {
+      decision, comments, reviewedVersion,
+    } = req.body || {};
+    const estimate = reviewService.decideReview({
+      estimateId: req.params.id, decision, comments, reviewedVersion, actor: actorFromUser(req.user),
+    });
+    res.json({ success: true, estimate });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+// Top-level (not nested under /api/estimates/:id) — a cross-estimate query,
+// not an action on one specific estimate.
+app.get('/api/review-queue', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_APPROVE), (req, res) => {
+  try {
+    const queue = reviewService.listReviewQueue(actorFromUser(req.user));
+    res.json({ success: true, queue });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+// ── In-app notifications (Phase 3 Part 12) — every authenticated user may
+// read their own; no capability beyond being logged in as yourself. ────────
+app.get('/api/notifications', requireAuth, (req, res) => {
+  try {
+    const { unread } = req.query;
+    const notifications = reviewService.listNotifications(actorFromUser(req.user), { unreadOnly: unread === 'true' });
+    res.json({ success: true, notifications });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.patch('/api/notifications/:id/read', requireAuth, (req, res) => {
+  try {
+    const notification = reviewService.markNotificationRead(req.params.id, actorFromUser(req.user));
+    res.json({ success: true, notification });
   } catch (err) {
     sendEstimateError(res, err);
   }

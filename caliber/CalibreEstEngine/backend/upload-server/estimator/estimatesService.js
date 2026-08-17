@@ -46,7 +46,7 @@ export class EstimateInputError extends Error {
   }
 }
 
-function now() {
+export function now() {
   return new Date().toISOString();
 }
 
@@ -61,17 +61,23 @@ function healthSnapshot(inputs, scored) {
   });
 }
 
-function getEstimateRow(estimateId) {
+export function getEstimateRow(estimateId) {
   return db.prepare('SELECT * FROM estimates WHERE id = ?').get(estimateId);
 }
 
-function getVersionRow(estimateId, version) {
+export function getVersionRow(estimateId, version) {
   return db.prepare('SELECT * FROM estimate_versions WHERE estimate_id = ? AND version = ?').get(estimateId, version);
 }
 
+export function getVersionRowById(versionId) {
+  return db.prepare('SELECT * FROM estimate_versions WHERE id = ?').get(versionId);
+}
+
 /** Owner or admin only — ESTIMATE_SAVE grants "you may create/save
- * estimates in general", not "you may touch this specific one". */
-function requireEstimate(estimateId, actor) {
+ * estimates in general", not "you may touch this specific one". Used to
+ * guard every MUTATION (save/submit/resubmit/ping) — a reviewer must never
+ * be able to touch an estimate they don't own via this gate. */
+export function requireEstimate(estimateId, actor) {
   const row = getEstimateRow(estimateId);
   if (!row) throw new EstimateNotFoundError();
   if (row.owner_user_id !== actor.userId && actor.role !== 'admin') {
@@ -80,13 +86,36 @@ function requireEstimate(estimateId, actor) {
   return row;
 }
 
-function writeAudit({
+/** Owner, admin, or ANYONE ever assigned as reviewer (current or past) may
+ * VIEW — deliberately broader than requireEstimate, and deliberately
+ * READ-ONLY call sites use it (history, version detail, comparison). Part
+ * 15/16 requires the Reviewer/Super role to see version history and
+ * comparisons for estimates assigned to them, which they don't own. */
+export function requireEstimateViewAccess(estimateId, actor) {
+  const row = getEstimateRow(estimateId);
+  if (!row) throw new EstimateNotFoundError();
+  if (row.owner_user_id === actor.userId || actor.role === 'admin') return row;
+  const everAssigned = db.prepare(
+    'SELECT 1 FROM reviewer_assignments WHERE estimate_id = ? AND reviewer_user_id = ? LIMIT 1',
+  ).get(estimateId, actor.userId);
+  if (!everAssigned) throw new EstimateAccessError();
+  return row;
+}
+
+/** versionId/metadata are optional structured context (Phase 3 Part 7/14) —
+ * e.g. which version was under review, which reviewer was assigned. Kept as
+ * one generic JSON column rather than a new single-purpose column per event
+ * kind (see estimatesDb.js's COLUMN_MIGRATIONS comment). */
+export function writeAudit({
   estimateId, action, actor, fromStatus = null, toStatus = null, reason = null,
+  versionId = null, metadata = null,
 }) {
   db.prepare(`
     INSERT INTO estimate_audit_events
-      (id, estimate_id, action, actor_user_id, actor_name, actor_role, from_status, to_status, reason, created_at)
-    VALUES (@id, @estimateId, @action, @actorUserId, @actorName, @actorRole, @fromStatus, @toStatus, @reason, @createdAt)
+      (id, estimate_id, action, actor_user_id, actor_name, actor_role, from_status, to_status, reason,
+       version_id, metadata_json, created_at)
+    VALUES (@id, @estimateId, @action, @actorUserId, @actorName, @actorRole, @fromStatus, @toStatus, @reason,
+       @versionId, @metadataJson, @createdAt)
   `).run({
     id: randomUUID(),
     estimateId,
@@ -97,13 +126,16 @@ function writeAudit({
     fromStatus,
     toStatus,
     reason,
+    versionId,
+    metadataJson: metadata ? JSON.stringify(metadata) : null,
     createdAt: now(),
   });
 }
 
-function versionToPublic(row) {
+export function versionToPublic(row) {
   if (!row) return null;
   return {
+    id: row.id,
     version: row.version,
     inputs: JSON.parse(row.inputs_json),
     bottomUp: row.bottom_up_json ? JSON.parse(row.bottom_up_json) : null,
@@ -111,10 +143,12 @@ function versionToPublic(row) {
     health: row.health_json ? JSON.parse(row.health_json) : null,
     createdByUserId: row.created_by_user_id,
     createdAt: row.created_at,
+    previousVersionId: row.previous_version_id ?? null,
+    changeReason: row.change_reason ?? null,
   };
 }
 
-function estimateToPublic(row, latestVersionRow) {
+export function estimateToPublic(row, latestVersionRow) {
   return {
     id: row.id,
     ownerUserId: row.owner_user_id,
@@ -122,20 +156,31 @@ function estimateToPublic(row, latestVersionRow) {
     name: row.name,
     status: row.status,
     currentVersion: row.current_version,
+    approvedVersionId: row.approved_version_id ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     latestVersion: versionToPublic(latestVersionRow),
   };
 }
 
-function insertVersion({
-  estimateId, version, inputs, scored, actor,
+/** previousVersionId is computed automatically (the row for version-1 on
+ * the same estimate, or null for version 1) rather than requiring every
+ * caller to pass it — it is fully derivable from (estimateId, version) and
+ * the UNIQUE(estimate_id, version) constraint, so there is never ambiguity
+ * to get wrong. changeReason is optional and currently only populated by
+ * resubmitEstimate() (reviewService.js) — the original create/save/update
+ * flows pass none, same as before this phase. */
+export function insertVersion({
+  estimateId, version, inputs, scored, actor, changeReason = null,
 }) {
   const health = healthSnapshot(inputs, scored);
+  const previous = version > 1 ? getVersionRow(estimateId, version - 1) : null;
   db.prepare(`
     INSERT INTO estimate_versions
-      (id, estimate_id, version, inputs_json, bottom_up_json, ml_json, health_json, created_by_user_id, created_at)
-    VALUES (@id, @estimateId, @version, @inputsJson, @bottomUpJson, @mlJson, @healthJson, @createdByUserId, @createdAt)
+      (id, estimate_id, version, inputs_json, bottom_up_json, ml_json, health_json, created_by_user_id, created_at,
+       previous_version_id, change_reason)
+    VALUES (@id, @estimateId, @version, @inputsJson, @bottomUpJson, @mlJson, @healthJson, @createdByUserId, @createdAt,
+       @previousVersionId, @changeReason)
   `).run({
     id: randomUUID(),
     estimateId,
@@ -146,6 +191,8 @@ function insertVersion({
     healthJson: JSON.stringify(health),
     createdByUserId: actor.userId,
     createdAt: now(),
+    previousVersionId: previous ? previous.id : null,
+    changeReason,
   });
   return getVersionRow(estimateId, version);
 }
@@ -195,7 +242,7 @@ export function listEstimates(actor) {
   return rows.map((row) => redactEstimateForRole(estimateToPublic(row, getVersionRow(row.id, row.current_version)), actor.role));
 }
 
-async function proposeChanges(estimateId, changes, actor, estimatorUrl) {
+export async function proposeChanges(estimateId, changes, actor, estimatorUrl) {
   const row = requireEstimate(estimateId, actor);
   const latest = getVersionRow(estimateId, row.current_version);
   const baseInputs = JSON.parse(latest.inputs_json);
@@ -239,20 +286,44 @@ export async function saveEstimate({ estimateId, changes, actor }, estimatorUrl)
 }
 
 export function getEstimateHistory(estimateId, actor) {
-  requireEstimate(estimateId, actor);
+  requireEstimateViewAccess(estimateId, actor);
   const versions = db.prepare('SELECT * FROM estimate_versions WHERE estimate_id = ? ORDER BY version ASC').all(estimateId);
   return versions.map((row) => redactVersionForRole(versionToPublic(row), actor.role));
 }
 
-export function getEstimateVersion(estimateId, version, actor) {
+/** Owner or admin only — same access rule as every other estimate view.
+ * Closes the gap flagged in the Phase 2 audit report: estimate_audit_events
+ * was write-only (rows were created correctly for every mutation, but
+ * nothing ever read them back). Mirrors the existing GET /api/knowledge/audit
+ * pattern already used for Knowledge Hub governance events. */
+export function getEstimateAuditEvents(estimateId, actor) {
   requireEstimate(estimateId, actor);
+  const rows = db.prepare('SELECT * FROM estimate_audit_events WHERE estimate_id = ? ORDER BY created_at ASC').all(estimateId);
+  return rows.map((r) => ({
+    id: r.id,
+    estimateId: r.estimate_id,
+    action: r.action,
+    actorUserId: r.actor_user_id,
+    actorName: r.actor_name,
+    actorRole: r.actor_role,
+    fromStatus: r.from_status,
+    toStatus: r.to_status,
+    reason: r.reason,
+    versionId: r.version_id,
+    metadata: r.metadata_json ? JSON.parse(r.metadata_json) : null,
+    createdAt: r.created_at,
+  }));
+}
+
+export function getEstimateVersion(estimateId, version, actor) {
+  requireEstimateViewAccess(estimateId, actor);
   const row = getVersionRow(estimateId, Number(version));
   if (!row) throw new EstimateNotFoundError(`Version ${version} was not found.`);
   return redactVersionForRole(versionToPublic(row), actor.role);
 }
 
 export function compareEstimateVersions(estimateId, versionA, versionB, actor) {
-  requireEstimate(estimateId, actor);
+  requireEstimateViewAccess(estimateId, actor);
   const a = redactVersionForRole(versionToPublic(getVersionRow(estimateId, Number(versionA))), actor.role);
   const b = redactVersionForRole(versionToPublic(getVersionRow(estimateId, Number(versionB))), actor.role);
   if (!a || !b) throw new EstimateNotFoundError('One or both versions were not found.');

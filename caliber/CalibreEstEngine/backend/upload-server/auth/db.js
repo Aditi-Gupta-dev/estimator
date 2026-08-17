@@ -10,7 +10,13 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.resolve(__dirname, '..', 'data');
+// CALIBRE_DATA_DIR lets tests point at an isolated copy of the data
+// directory instead of the real one — used for safely verifying schema
+// migrations (see estimatesDb.js) without ever touching live data. Unset
+// in normal operation, so behavior is unchanged by default.
+const DATA_DIR = process.env.CALIBRE_DATA_DIR
+  ? path.resolve(process.env.CALIBRE_DATA_DIR)
+  : path.resolve(__dirname, '..', 'data');
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const db = new Database(path.join(DATA_DIR, 'auth.db'));
