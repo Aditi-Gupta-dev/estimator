@@ -23,6 +23,7 @@ import authRoutes from './auth/routes.js';
 import { requireAuth, requireCapability } from './auth/middleware.js';
 import { runScenario, ScenarioValidationError } from './estimator/scenarioRunner.js';
 import { calculateEstimate } from './estimator/authoritativeEstimate.js';
+import { redactBottomUpForRole } from './estimator/rateCardRedaction.js';
 import * as estimatesService from './estimator/estimatesService.js';
 import { CAPABILITIES, roleCan } from '../../frontend/calibre-app/src/constants/capabilities.js';
 import { listUsers } from './auth/users.js';
@@ -425,6 +426,9 @@ app.post('/api/estimate/calculate', requireAuth, requireCapability(CAPABILITIES.
     const result = await calculateEstimate({
       overrides, sectionA, industry, overallComplexity,
     }, ESTIMATOR_URL);
+    // Redacted by the AUTHENTICATED session's role (req.user.role) — never
+    // anything the request body could claim. See estimator/rateCardRedaction.js.
+    result.bottomUp = redactBottomUpForRole(result.bottomUp, req.user.role);
     res.json({ success: true, result });
   } catch (err) {
     console.error('Authoritative estimate calculation failed:', err.message);

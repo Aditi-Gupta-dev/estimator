@@ -19,6 +19,7 @@ import db from './estimatesDb.js';
 import { applyChanges } from './scenarioRunner.js';
 import { calculateEstimate } from './authoritativeEstimate.js';
 import { canTransition, EstimateStatus } from './estimateStatus.js';
+import { redactBottomUpForRole, redactEstimateForRole, redactVersionForRole } from './rateCardRedaction.js';
 import { computeEstimateHealth } from '../../../frontend/calibre-app/src/lib/estimatorIntelligence.js';
 
 export class EstimateAccessError extends Error {
@@ -179,19 +180,19 @@ export async function createEstimate({
   writeAudit({
     estimateId: id, action: 'create', actor, toStatus: EstimateStatus.DRAFT,
   });
-  return estimateToPublic(getEstimateRow(id), versionRow);
+  return redactEstimateForRole(estimateToPublic(getEstimateRow(id), versionRow), actor.role);
 }
 
 export function getEstimate(estimateId, actor) {
   const row = requireEstimate(estimateId, actor);
-  return estimateToPublic(row, getVersionRow(estimateId, row.current_version));
+  return redactEstimateForRole(estimateToPublic(row, getVersionRow(estimateId, row.current_version)), actor.role);
 }
 
 export function listEstimates(actor) {
   const rows = actor.role === 'admin'
     ? db.prepare('SELECT * FROM estimates ORDER BY updated_at DESC').all()
     : db.prepare('SELECT * FROM estimates WHERE owner_user_id = ? ORDER BY updated_at DESC').all(actor.userId);
-  return rows.map((row) => estimateToPublic(row, getVersionRow(row.id, row.current_version)));
+  return rows.map((row) => redactEstimateForRole(estimateToPublic(row, getVersionRow(row.id, row.current_version)), actor.role));
 }
 
 async function proposeChanges(estimateId, changes, actor, estimatorUrl) {
@@ -212,7 +213,7 @@ export async function updateEstimate({ estimateId, changes, actor }, estimatorUr
     currentVersion: row.current_version,
     persisted: false,
     proposedInputs: nextInputs,
-    bottomUp: scored.bottomUp,
+    bottomUp: redactBottomUpForRole(scored.bottomUp, actor.role),
     ml: scored.ml,
     coverage: scored.coverage,
   };
@@ -234,26 +235,26 @@ export async function saveEstimate({ estimateId, changes, actor }, estimatorUrl)
   writeAudit({
     estimateId, action: 'save_version', actor, fromStatus: row.status, toStatus: row.status,
   });
-  return estimateToPublic(getEstimateRow(estimateId), versionRow);
+  return redactEstimateForRole(estimateToPublic(getEstimateRow(estimateId), versionRow), actor.role);
 }
 
 export function getEstimateHistory(estimateId, actor) {
   requireEstimate(estimateId, actor);
   const versions = db.prepare('SELECT * FROM estimate_versions WHERE estimate_id = ? ORDER BY version ASC').all(estimateId);
-  return versions.map(versionToPublic);
+  return versions.map((row) => redactVersionForRole(versionToPublic(row), actor.role));
 }
 
 export function getEstimateVersion(estimateId, version, actor) {
   requireEstimate(estimateId, actor);
   const row = getVersionRow(estimateId, Number(version));
   if (!row) throw new EstimateNotFoundError(`Version ${version} was not found.`);
-  return versionToPublic(row);
+  return redactVersionForRole(versionToPublic(row), actor.role);
 }
 
 export function compareEstimateVersions(estimateId, versionA, versionB, actor) {
   requireEstimate(estimateId, actor);
-  const a = versionToPublic(getVersionRow(estimateId, Number(versionA)));
-  const b = versionToPublic(getVersionRow(estimateId, Number(versionB)));
+  const a = redactVersionForRole(versionToPublic(getVersionRow(estimateId, Number(versionA))), actor.role);
+  const b = redactVersionForRole(versionToPublic(getVersionRow(estimateId, Number(versionB))), actor.role);
   if (!a || !b) throw new EstimateNotFoundError('One or both versions were not found.');
   return {
     estimateId,
@@ -306,5 +307,8 @@ export function setEstimateStatus({
   writeAudit({
     estimateId, action: 'status_change', actor, fromStatus: row.status, toStatus: targetStatus, reason,
   });
-  return estimateToPublic(getEstimateRow(estimateId), getVersionRow(estimateId, row.current_version));
+  return redactEstimateForRole(
+    estimateToPublic(getEstimateRow(estimateId), getVersionRow(estimateId, row.current_version)),
+    actor.role,
+  );
 }

@@ -79,17 +79,57 @@ async function main() {
   const calcData = await calcRes.json();
   check('calculate succeeds', calcRes.ok && calcData.success === true, JSON.stringify(calcData).slice(0, 200));
   check('bottomUp.totalCost is a real number', typeof calcData.result?.bottomUp?.totalCost === 'number');
-  // KNOWN GAP (found during Phase 2 verification, out of that phase's scope
-  // to fix — see the phase report's "remaining security concern"): this
-  // route does not redact costByRole[role].blendedRate by capability, so an
-  // `estimator` (who lacks RATE_CARD_VIEW) currently receives raw blended
-  // rates in this response despite the UI never rendering them. Documenting
-  // the actual behavior here rather than asserting a redaction that was
-  // never built.
+  check('estimator does not receive blendedRate (403-equivalent redaction)',
+    !JSON.stringify(calcData.result?.bottomUp?.costByRole).includes('blendedRate'));
+  check('estimator still receives aggregate cost/effort per role (redaction is field-level, not row-level)',
+    Object.values(calcData.result?.bottomUp?.costByRole || {}).every((r) => typeof r.cost === 'number' && typeof r.effortDays === 'number'));
+
+  // ── Rate-card redaction: per-role behavior, proven server-side ─────────────
+  console.log('\nRate-card redaction (server-side, not UI-dependent)');
+  const adminCookieForRates = await login('admin@calibre.demo', 'Calibre123!');
+  const superCookieForRates = await login('super@calibre.demo', 'Calibre123!');
+  const smeCookie = await login('sme@calibre.demo', 'Calibre123!');
+
+  const calcAs = async (cookie) => {
+    const res = await fetch(`${BASE}/api/estimate/calculate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify(sampleInputs()),
+    });
+    return { status: res.status, data: await res.json() };
+  };
+
+  const adminCalc = await calcAs(adminCookieForRates);
+  check('admin receives blendedRate (permitted role)',
+    JSON.stringify(adminCalc.data.result?.bottomUp?.costByRole).includes('blendedRate'));
+
+  const superCalc = await calcAs(superCookieForRates);
+  check('super receives blendedRate (permitted role)',
+    JSON.stringify(superCalc.data.result?.bottomUp?.costByRole).includes('blendedRate'));
+
+  const smeCalc = await calcAs(smeCookie);
+  check('sme receives blendedRate (permitted role)',
+    JSON.stringify(smeCalc.data.result?.bottomUp?.costByRole).includes('blendedRate'));
+
+  // Body-role-forgery: an estimator claiming to be admin in the request body
+  // must still be redacted — authorization comes from the session
+  // (req.user.role), never anything the client sends.
+  const forgedRoleRes = await fetch(`${BASE}/api/estimate/calculate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: estimatorCookie },
+    body: JSON.stringify({ ...sampleInputs(), role: 'admin', callerRole: 'admin' }),
+  });
+  const forgedRoleData = await forgedRoleRes.json();
+  check('changing role in the request body cannot bypass redaction',
+    !JSON.stringify(forgedRoleData.result?.bottomUp?.costByRole).includes('blendedRate'));
+
+  // Frontend-irrelevance: this whole test file is a raw fetch script with no
+  // UI involved at all — nothing here renders or hides anything. That the
+  // two checks above (estimator redacted, admin not) already hold PROVES the
+  // decision is made server-side: there is no client to have hidden it.
 
   // ── Create / get / update / save / history ──────────────────────────────────
   console.log('\nCreate → get → update(propose) → save(persist) → history');
-  const smeCookie = await login('sme@calibre.demo', 'Calibre123!');
 
   const createRes = await fetch(`${BASE}/api/estimates`, {
     method: 'POST',
@@ -101,6 +141,19 @@ async function main() {
   const estimateId = createData.estimate?.id;
   check('create returns an id', !!estimateId);
   check('create starts at version 1, status draft', createData.estimate?.currentVersion === 1 && createData.estimate?.status === 'draft');
+  check('persisted-estimate response also carries blendedRate for a permitted role (sme)',
+    JSON.stringify(createData.estimate?.latestVersion?.bottomUp?.costByRole).includes('blendedRate'));
+
+  // Same redaction applies to every persisted-estimate response, not just
+  // /api/estimate/calculate — proven here via a real create+get as estimator.
+  const estimatorCreateRes = await fetch(`${BASE}/api/estimates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: estimatorCookie },
+    body: JSON.stringify({ name: 'Estimator-owned Estimate', inputs: sampleInputs() }),
+  });
+  const estimatorCreateData = await estimatorCreateRes.json();
+  check('estimator-owned persisted estimate does not carry blendedRate either',
+    !JSON.stringify(estimatorCreateData.estimate?.latestVersion?.bottomUp?.costByRole).includes('blendedRate'));
 
   const getRes = await fetch(`${BASE}/api/estimates/${estimateId}`, { headers: { Cookie: smeCookie } });
   const getData = await getRes.json();
