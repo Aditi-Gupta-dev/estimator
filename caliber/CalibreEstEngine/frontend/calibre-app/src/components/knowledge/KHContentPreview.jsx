@@ -1,6 +1,7 @@
 import { IconDownload, IconLink, IconSparkles, IconEdit, IconPlayerPlay, IconEye } from '@tabler/icons-react';
 import { CONTENT_TYPE_MAP, BU_MAP, FILE_TYPE_CONFIG } from '../../constants/business-units';
 import { useRoleContext } from '../../contexts/RoleContext';
+import { CAPABILITIES } from '../../constants/capabilities';
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -11,8 +12,8 @@ function timeAgo(dateStr) {
 }
 
 export function KHContentPreview({ item, onDownload, onPreview, onOpenModal, onAskEVA }) {
-  const { currentRoleId } = useRoleContext();
-  const canEdit = currentRoleId === 'admin' || currentRoleId === 'sme';
+  const { can } = useRoleContext();
+  const canEdit = can(CAPABILITIES.KNOWLEDGE_REVIEW);
   const ct = CONTENT_TYPE_MAP[item.type] || {};
   const bu = BU_MAP[item.unitId] || {};
   const ft = FILE_TYPE_CONFIG[item.fileType] || {};

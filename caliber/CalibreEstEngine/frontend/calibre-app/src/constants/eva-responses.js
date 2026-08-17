@@ -63,6 +63,16 @@ export const DEFAULT_REPLY = {
 
 // ── Role-specific suggestion chips ────────────────────────────────────────────
 export const SUGGESTIONS = {
+  // Executive persona: framed around decisions, not estimator mechanics —
+  // and deliberately free of scenario/rate-card prompts, which this role is
+  // not authorised to run or see.
+  senior_mgmt: [
+    'Summarise the current estimate for me',
+    'What is the risk on this estimate?',
+    'How does this compare with historical projects?',
+    'What are the biggest risks in this estimate?',
+    'What does AMBER mean?',
+  ],
   admin: [
     'Show pending calibration reviews',
     'What is parametric estimation?',

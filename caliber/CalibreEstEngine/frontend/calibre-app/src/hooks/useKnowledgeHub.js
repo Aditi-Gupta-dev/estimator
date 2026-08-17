@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useRoleContext } from '../contexts/RoleContext';
+import { CAPABILITIES } from '../constants/capabilities';
 import { BUSINESS_UNITS } from '../constants/business-units';
 import { getVisibleSubdivisions, TYPE_TO_SUBDIVISION } from '../constants/subdivisions';
 
@@ -80,7 +81,19 @@ function mapServerFileToItem(file) {
 }
 
 export function useKnowledgeHub() {
-  const { currentRoleId, setActiveUnitId } = useRoleContext();
+  const { currentRoleId, setActiveUnitId, can } = useRoleContext();
+  // Capability-driven, replacing eight copies of an inline
+  // `role === 'admin' || role === 'sme'` test. That hardcoded rule also
+  // disagreed with the server, which permits `super` to see rate cards.
+  const canReviewKnowledge = can(CAPABILITIES.KNOWLEDGE_REVIEW);
+  const canSeeRateCards = can(CAPABILITIES.RATE_CARD_VIEW);
+  // Rate cards follow RATE_CARD_VIEW; other raw `data` artifacts are a
+  // curation concern, so they follow KNOWLEDGE_REVIEW.
+  const hideItem = useCallback(
+    (c) => (c.type === 'ratecard' && !canSeeRateCards)
+      || (c.type === 'data' && !canReviewKnowledge),
+    [canSeeRateCards, canReviewKnowledge],
+  );
   const [searchParams, setSearchParams] = useSearchParams();
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -186,7 +199,7 @@ export function useKnowledgeHub() {
   }, []);
 
   // ── Derived: can upload ───────────────────────────────────────────────────
-  const canUpload = currentRoleId === 'admin' || currentRoleId === 'sme';
+  const canUpload = can(CAPABILITIES.KNOWLEDGE_REVIEW);
 
   // ── Derived: current BU ───────────────────────────────────────────────────
   const currentUnit = useMemo(
@@ -223,9 +236,7 @@ export function useKnowledgeHub() {
     let items = localItems;
 
     // 0. Role-gate: hide sensitive cost/rate data types from non-admin/non-sme roles
-    if (currentRoleId !== 'admin' && currentRoleId !== 'sme') {
-      items = items.filter((c) => c.type !== 'data' && c.type !== 'ratecard');
-    }
+    items = items.filter((c) => !hideItem(c));
 
     // 1. Search query filter
     if (searchQuery.trim().length > 1) {
@@ -263,7 +274,7 @@ export function useKnowledgeHub() {
     }
 
     return items;
-  }, [localItems, searchQuery, selectedUnitId, activeContentType, activeSubdivision, activeProgramType, currentRoleId, visibleSubdivisions]);
+  }, [localItems, searchQuery, selectedUnitId, activeContentType, activeSubdivision, activeProgramType, hideItem, visibleSubdivisions]);
 
   // ── Derived: search results grouped by type (for overlay) ─────────────────
   const searchResults = useMemo(() => {
@@ -271,33 +282,29 @@ export function useKnowledgeHub() {
     const q = searchQuery.toLowerCase();
     return localItems
       .filter((c) => {
-        const roleMatch = currentRoleId === 'admin' || currentRoleId === 'sme' ? true : (c.type !== 'data' && c.type !== 'ratecard');
+        const roleMatch = !hideItem(c);
         const searchMatch = c.title.toLowerCase().includes(q) || 
                             c.description.toLowerCase().includes(q) ||
                             c.tags.some(t => t.toLowerCase().includes(q));
         return roleMatch && searchMatch;
       })
       .slice(0, 12);
-  }, [searchQuery, localItems, currentRoleId]);
+  }, [searchQuery, localItems, hideItem]);
 
   // ── Derived: type counts for filter tabs ──────────────────────────────────
   const typeCounts = useMemo(() => {
     let base = localItems;
-    if (currentRoleId !== 'admin' && currentRoleId !== 'sme') {
-      base = base.filter((c) => c.type !== 'data' && c.type !== 'ratecard');
-    }
+    base = base.filter((c) => !hideItem(c));
     if (selectedUnitId !== 'all') base = base.filter((c) => c.unitId === selectedUnitId);
     const counts = { all: base.length };
     base.forEach((c) => { counts[c.type] = (counts[c.type] || 0) + 1; });
     return counts;
-  }, [localItems, selectedUnitId, currentRoleId]);
+  }, [localItems, selectedUnitId, hideItem]);
 
   // ── Derived: subdivision counts (for the subdivision nav) ────────────────
   const subdivisionCounts = useMemo(() => {
     let base = localItems;
-    if (currentRoleId !== 'admin' && currentRoleId !== 'sme') {
-      base = base.filter((c) => c.type !== 'data' && c.type !== 'ratecard');
-    }
+    base = base.filter((c) => !hideItem(c));
     if (selectedUnitId !== 'all') base = base.filter((c) => c.unitId === selectedUnitId);
     const counts = {};
     base.forEach((c) => {
@@ -305,15 +312,13 @@ export function useKnowledgeHub() {
       if (subId) counts[subId] = (counts[subId] || 0) + 1;
     });
     return counts;
-  }, [localItems, selectedUnitId, currentRoleId]);
+  }, [localItems, selectedUnitId, hideItem]);
 
   // ── Derived: program type counts for active subdivision ───────────────────
   const programTypeCounts = useMemo(() => {
     if (!activeSubdivision) return {};
     let base = localItems;
-    if (currentRoleId !== 'admin' && currentRoleId !== 'sme') {
-      base = base.filter((c) => c.type !== 'data' && c.type !== 'ratecard');
-    }
+    base = base.filter((c) => !hideItem(c));
     if (selectedUnitId !== 'all') base = base.filter((c) => c.unitId === selectedUnitId);
     const sub = visibleSubdivisions.find((s) => s.id === activeSubdivision);
     if (sub) base = base.filter((c) => sub.types.includes(c.type));
@@ -323,7 +328,7 @@ export function useKnowledgeHub() {
       counts[pt] = (counts[pt] || 0) + 1;
     });
     return counts;
-  }, [localItems, activeSubdivision, selectedUnitId, currentRoleId, visibleSubdivisions]);
+  }, [localItems, activeSubdivision, selectedUnitId, hideItem, visibleSubdivisions]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
 

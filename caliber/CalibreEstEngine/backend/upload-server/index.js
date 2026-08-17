@@ -20,8 +20,10 @@ import path    from 'path';
 import { fileURLToPath } from 'url';
 
 import authRoutes from './auth/routes.js';
-import { requireAuth, requireRole } from './auth/middleware.js';
+import { requireAuth, requireCapability } from './auth/middleware.js';
 import { runScenario, ScenarioValidationError } from './estimator/scenarioRunner.js';
+import { CAPABILITIES, roleCan } from '../../frontend/calibre-app/src/constants/capabilities.js';
+import { listUsers } from './auth/users.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,6 +81,37 @@ function resolveSubFolder(docType) {
 
 function resolveBUFolder(unitId) {
   return BU_MAP[unitId?.toLowerCase()] || '_global';
+}
+
+// The document classes the ingest pipeline understands. `type` is
+// client-supplied and DRIVES access_roles downstream (type 'ratecard' is
+// withheld from estimator/senior_mgmt), so an unrecognised value must not be
+// passed through — it would be stored verbatim and silently treated as
+// unrestricted. Unknown values fall back to the most conservative sensible
+// default rather than being trusted.
+const KNOWN_DOCUMENT_TYPES = new Set([
+  'template', 'guideline', 'pov', 'casestudy', 'playbook', 'ratecard',
+  'benchmark', 'faq', 'whitepaper', 'proposal', 'video', 'data',
+]);
+
+function normalizeDocumentType(rawType) {
+  const t = (rawType ?? '').toLowerCase().trim();
+  return KNOWN_DOCUMENT_TYPES.has(t) ? t : 'guideline';
+}
+
+// Counts real KnowledgeHub artifacts for the admin overview. Mirrors the skip
+// rules used by GET /api/files (sidecar .json and .gitkeep are not documents)
+// so the two never report different totals.
+function countKnowledgeHubFiles(dir = KH_ROOT) {
+  if (!fs.existsSync(dir)) return 0;
+  let count = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === '.gitkeep' || entry.name.endsWith('.json')) continue;
+    count += entry.isDirectory()
+      ? countKnowledgeHubFiles(path.join(dir, entry.name))
+      : 1;
+  }
+  return count;
 }
 
 // ── Naming convention: {BU}_{folder}_{OriginalName}_{Version}_{YYYY-MM}.ext ──
@@ -215,7 +248,9 @@ app.post('/api/upload', requireAuth, upload.single('file'), (req, res) => {
     const parsedTags = tags ? (typeof tags === 'string' ? JSON.parse(tags) : tags) : [];
     const metadataContent = {
       title: title || req.file.originalname,
-      type: type || 'guideline',
+      // Validated, not trusted — see normalizeDocumentType: this value decides
+      // who may later retrieve the document through EVA.
+      type: normalizeDocumentType(type),
       unitId: unitId || 'general',
       version: version || '1.0',
       description: description || 'No description provided.',
@@ -322,7 +357,7 @@ app.get('/api/files', requireAuth, (_req, res) => {
 // to the Python FastAPI service (estimator_agents/src/api.py) and passes its
 // response straight through. Kept as a dumb proxy (no schema validation here)
 // — that's the Pydantic ScoreRequest model's job on the Python side.
-app.post('/api/score', requireAuth, requireRole('admin', 'super', 'sme', 'estimator'), async (req, res) => {
+app.post('/api/score', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_RUN), async (req, res) => {
   try {
     const upstream = await fetch(`${ESTIMATOR_URL}/score`, {
       method: 'POST',
@@ -345,6 +380,58 @@ app.post('/api/score', requireAuth, requireRole('admin', 'super', 'sme', 'estima
   }
 });
 
+// ── Admin control-center data ─────────────────────────────────────────────────
+// One server-authored source for the admin dashboard, so the browser never
+// talks to the Python services directly. Every number here is REAL — user
+// counts from the auth DB, document counts from disk and from eva_service's
+// index, model metadata from estimator_agents. Nothing is synthesised: if a
+// service is down its section reports available:false rather than a zero that
+// would read as "no documents" or "no model".
+app.get('/api/system/overview', requireAuth, requireCapability(CAPABILITIES.PLATFORM_ANALYTICS_VIEW), async (req, res) => {
+  const probe = async (url) => {
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
+      if (!r.ok) return { available: false, error: `HTTP ${r.status}` };
+      return { available: true, ...(await r.json()) };
+    } catch (err) {
+      return { available: false, error: err.message };
+    }
+  };
+
+  const users = listUsers();
+  const usersByRole = users.reduce((acc, u) => {
+    acc[u.role] = (acc[u.role] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Honest model accuracy, read from the training artefact rather than quoted
+  // from memory — these are deliberately modest numbers and the UI says so.
+  let modelMetrics = { available: false };
+  try {
+    const summaryPath = path.resolve(__dirname, '..', 'estimator_agents', 'models', 'training_summary.json');
+    modelMetrics = { available: true, ...JSON.parse(fs.readFileSync(summaryPath, 'utf-8')) };
+  } catch (err) {
+    modelMetrics = { available: false, error: err.message };
+  }
+
+  const [estimatorHealth, evaHealth] = await Promise.all([
+    probe(`${ESTIMATOR_URL}/health`),
+    probe(`${EVA_URL}/health`),
+  ]);
+
+  res.json({
+    users: { total: users.length, byRole: usersByRole, active: users.filter((u) => u.status === 'active').length },
+    knowledgeHub: { filesOnDisk: countKnowledgeHubFiles() },
+    services: {
+      gateway: { available: true, port: PORT },
+      estimator: estimatorHealth,
+      eva: evaHealth,
+    },
+    modelMetrics,
+    generatedAt: new Date().toISOString(),
+  });
+});
+
 // ── Internal: what-if scenario execution (called by eva_service) ──────────────
 // Runs the SAME estimator engine the browser runs (see estimator/scenarioRunner.js
 // — it imports the frontend's own modules) so EVA can answer "what if I increase
@@ -355,8 +442,6 @@ app.post('/api/score', requireAuth, requireRole('admin', 'super', 'sme', 'estima
 // gate as /api/score so this cannot be used to score as a role that isn't
 // allowed to (notably senior_mgmt). The role it receives was already
 // overwritten with the verified session role by the /api/eva proxy below.
-const SCORE_ALLOWED_ROLES = ['admin', 'super', 'sme', 'estimator'];
-
 app.post('/internal/estimator/scenario', async (req, res) => {
   if (req.get('x-internal-key') !== INTERNAL_API_KEY) {
     return res.status(401).json({ success: false, error: 'Invalid internal key.' });
@@ -364,10 +449,13 @@ app.post('/internal/estimator/scenario', async (req, res) => {
 
   const { callerRole, baseInputs, changes } = req.body || {};
 
-  if (!SCORE_ALLOWED_ROLES.includes(callerRole)) {
+  // Same capability the browser's /api/score path is gated on — EVA cannot be
+  // used as a side door to score as a role that isn't allowed to.
+  if (!roleCan(callerRole, CAPABILITIES.SCENARIO_RUN)) {
     return res.status(403).json({
       success: false,
-      error: 'This role is not permitted to run estimator scoring.',
+      error: 'This role is not permitted to run estimator scenarios.',
+      capability: CAPABILITIES.SCENARIO_RUN,
     });
   }
   if (!baseInputs?.sectionA || !baseInputs?.overrides) {

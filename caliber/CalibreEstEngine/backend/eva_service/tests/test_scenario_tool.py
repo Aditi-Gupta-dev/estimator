@@ -293,8 +293,18 @@ def test_empty_risk_reduction_block_forbids_invention():
 def test_route_sends_what_if_to_scenario():
     assert route_after_retrieve({
         "message": "what if I increase integration effort by 10%?",
-        "intent": INTENT.RETRIEVE, "plan": {}, "estimator_context": make_ctx(),
+        "intent": INTENT.RETRIEVE, "plan": {}, "caller_role": "estimator",
+        "estimator_context": make_ctx(),
     }) == "scenario"
+
+
+def test_route_fails_closed_without_a_known_role():
+    """Scenario access is capability-gated, so a missing/unknown role must not
+    fall through to the tool."""
+    assert route_after_retrieve({
+        "message": "what if I increase integration effort by 10%?",
+        "intent": INTENT.RETRIEVE, "plan": {}, "estimator_context": make_ctx(),
+    }) != "scenario"
 
 
 def test_route_sends_read_question_to_estimator_context_not_scenario():

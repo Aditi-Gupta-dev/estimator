@@ -19,7 +19,13 @@ def _base_candidates(
     document_class: str | None,
     program_type: str | None,
 ) -> list[Chunk]:
-    stmt = select(Chunk).join(Document).where(Document.status == "published")
+    # revoked_at was previously never checked, so a revoked document stayed
+    # fully retrievable — revocation only worked if the row was deleted.
+    stmt = (
+        select(Chunk)
+        .join(Document)
+        .where(Document.status == "published", Document.revoked_at.is_(None))
+    )
 
     if unit_id:
         # A unit-scoped query still surfaces _global (COE-owned) content.

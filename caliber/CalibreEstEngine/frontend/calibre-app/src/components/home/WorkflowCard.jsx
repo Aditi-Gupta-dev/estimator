@@ -1,14 +1,25 @@
 import { useNavigate } from 'react-router-dom';
-import { IconArrowUpRight, IconLock, IconShieldLock } from '@tabler/icons-react';
+import { IconArrowUpRight, IconLock } from '@tabler/icons-react';
 
-export function WorkflowCard({ workflow, isLocked, currentRoleId, onLockedClick }) {
+// The access mode each role has on a card, rendered as a chip. Replaces two
+// hardcoded role checks (`=== 'super'`, `=== 'sme'`) — one of which was
+// actively wrong: it printed "SME Access" on card 04, which CARD_ACCESS marks
+// as locked for SME.
+const MODE_LABEL = {
+  full: 'Full access',
+  unit: 'Unit scope',
+  review: 'Review & feedback',
+  comment: 'View & comment',
+  self: 'Your estimates',
+  readonly: 'Read-only',
+};
+
+export function WorkflowCard({ workflow, mode, onLockedClick }) {
   const navigate = useNavigate();
-  const { num, title, description, color, glowColor, gradientFrom, borderHover, Icon, id } = workflow;
+  const { num, title, description, color, glowColor, gradientFrom, borderHover, Icon } = workflow;
 
-  // Super user gets "Approval Queue" badge on card 02
-  const showApprovalBadge = id === 2 && currentRoleId === 'super';
-  // SME gets green access badge on cards 04 & 05 instead of lock
-  const showSMEAccess = (id === 4 || id === 5) && currentRoleId === 'sme';
+  const isLocked = mode === 'locked';
+  const modeLabel = MODE_LABEL[mode];
 
   const handleClick = () => {
     if (isLocked) {
@@ -87,30 +98,15 @@ export function WorkflowCard({ workflow, isLocked, currentRoleId, onLockedClick 
         <div className="card-title">{title}</div>
         <div className="card-desc">{description}</div>
 
-        {/* Badges */}
+        {/* Badges — one chip stating this role's actual access mode. */}
         <div className="card-badges">
-          {isLocked && !showSMEAccess && (
+          {isLocked ? (
             <span className="card-badge lock">
-              <IconShieldLock size={11} strokeWidth={2} />
-              Admin / SME only
-            </span>
-          )}
-          {showSMEAccess && (
-            <span className="card-badge sme-access">
-              <IconShieldLock size={11} strokeWidth={2} />
-              SME Access
-            </span>
-          )}
-          {isLocked && (
-            <span className="card-badge lock" style={{ opacity: 0.7 }}>
               <IconLock size={11} strokeWidth={2} />
               Not available for your role
             </span>
-          )}
-          {showApprovalBadge && (
-            <span className="card-badge approval">
-              Approval Queue
-            </span>
+          ) : modeLabel && (
+            <span className="card-badge">{modeLabel}</span>
           )}
         </div>
       </div>

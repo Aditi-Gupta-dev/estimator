@@ -581,3 +581,68 @@
   .activity-section { padding: 16px 16px 120px; }
   .hero-title { font-size: 22px; }
 }
+
+/* ─── Role-aware navigation + dashboards ─────────────────────────────────── */
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.topbar-nav-link {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.topbar-nav-link:hover { color: var(--text-primary); background: var(--surface-2); }
+
+.topbar-nav-link.active {
+  color: var(--gold);
+  background: var(--surface-2);
+}
+
+.dash-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 0 32px;
+  max-width: 1440px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.dash-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* States a capability the product genuinely lacks — deliberately understated
+   so it reads as an honest limitation, not an error. */
+.dash-unavailable {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.dash-unavailable strong {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.permission-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 6px 0 0;
+}

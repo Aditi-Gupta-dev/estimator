@@ -47,6 +47,19 @@ def register_document(
     ).scalar_one_or_none()
 
     if existing and existing.content_hash == content_hash:
+        # Content is unchanged, but SECURITY metadata may not be: correcting a
+        # document's class (e.g. mislabelled -> ratecard) changes who may see
+        # it. Skipping that update would leave the old, more permissive
+        # access_roles in place forever, since re-ingesting identical bytes is
+        # the normal way a reclassification is applied. Chunks/embeddings are
+        # deliberately left intact — only the access decision changes.
+        new_access = json.dumps(access_roles)
+        if existing.access_roles != new_access or existing.document_class != document_class:
+            existing.document_class = document_class
+            existing.access_roles = new_access
+            existing.status = status
+            session.flush()
+            return existing.id, True
         return existing.id, False
 
     if existing:

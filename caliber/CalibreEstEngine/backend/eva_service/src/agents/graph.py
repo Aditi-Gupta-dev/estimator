@@ -7,6 +7,7 @@ from langgraph.graph import END, START, StateGraph
 
 from ..retrieval.planner import INTENT
 from .estimate_tool import estimate_tool_node
+from .capabilities import Capability, role_can
 from .estimator_context import is_estimate_question
 from .scenario_tool import is_scenario_question, scenario_node
 from .nodes import (
@@ -45,10 +46,22 @@ def route_after_retrieve(state: EvaGraphState) -> str:
     if intent in (INTENT.ESTIMATE, INTENT.ASSESS_RISK) and wants_tool:
         return "estimate_tool"
     message = state.get("message", "")
+    caller_role = state.get("caller_role")
     # A what-if is a write-shaped question about the live estimate, so it is
     # checked before the read-only path (which would otherwise just restate
     # the current numbers at someone asking what would change).
-    if state.get("estimator_context") and is_scenario_question(message):
+    #
+    # Capability is checked HERE, at routing, so a role without SCENARIO_RUN
+    # never reaches the tool at all — there is no prompt for a jailbreak to
+    # talk its way past. (upload-server re-checks the same capability on
+    # /internal/estimator/scenario, so this is defence in depth, not the only
+    # defence.) Restricted roles fall through to the read-only estimator path,
+    # which still answers what they ARE allowed to see.
+    if (
+        state.get("estimator_context")
+        and is_scenario_question(message)
+        and role_can(caller_role, Capability.SCENARIO_RUN)
+    ):
         return "scenario"
     # A question about the estimate the user is actually looking at is
     # answered from the live estimator snapshot, not by re-scoring a

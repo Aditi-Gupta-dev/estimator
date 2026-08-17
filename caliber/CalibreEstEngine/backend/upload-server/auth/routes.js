@@ -1,7 +1,8 @@
 import bcrypt from 'bcrypt';
 import express from 'express';
 import { signToken } from './jwt.js';
-import { AUTH_COOKIE_NAME, requireAuth, requireRole } from './middleware.js';
+import { AUTH_COOKIE_NAME, requireAuth, requireCapability } from './middleware.js';
+import { CAPABILITIES } from '../../../frontend/calibre-app/src/constants/capabilities.js';
 import {
   createUser,
   deleteUser,
@@ -58,11 +59,11 @@ router.get('/api/auth/me', requireAuth, (req, res) => {
 
 // ── Admin-only user management (backs ManageUsersPanel.jsx) ────────────────
 
-router.get('/api/auth/users', requireAuth, requireRole('admin'), (_req, res) => {
+router.get('/api/auth/users', requireAuth, requireCapability(CAPABILITIES.USER_MANAGE), (_req, res) => {
   res.json({ success: true, users: listUsers().map(toPublicUser) });
 });
 
-router.post('/api/auth/users', requireAuth, requireRole('admin'), (req, res) => {
+router.post('/api/auth/users', requireAuth, requireCapability(CAPABILITIES.USER_MANAGE), (req, res) => {
   const { name, email, password, role, unit, department, status } = req.body || {};
   if (!name || !email || !password || !role || !department) {
     return res.status(400).json({
@@ -78,7 +79,7 @@ router.post('/api/auth/users', requireAuth, requireRole('admin'), (req, res) => 
   res.status(201).json({ success: true, user: toPublicUser(user) });
 });
 
-router.patch('/api/auth/users/:id', requireAuth, requireRole('admin'), (req, res) => {
+router.patch('/api/auth/users/:id', requireAuth, requireCapability(CAPABILITIES.USER_MANAGE), (req, res) => {
   const existing = getUserById(req.params.id);
   if (!existing) {
     return res.status(404).json({ success: false, error: 'User not found.' });
@@ -88,7 +89,7 @@ router.patch('/api/auth/users/:id', requireAuth, requireRole('admin'), (req, res
   res.json({ success: true, user: toPublicUser(updated) });
 });
 
-router.delete('/api/auth/users/:id', requireAuth, requireRole('admin'), (req, res) => {
+router.delete('/api/auth/users/:id', requireAuth, requireCapability(CAPABILITIES.USER_MANAGE), (req, res) => {
   const existing = getUserById(req.params.id);
   if (!existing) {
     return res.status(404).json({ success: false, error: 'User not found.' });

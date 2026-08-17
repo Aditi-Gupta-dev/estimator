@@ -1,22 +1,22 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ManageUsersPanel } from './ManageUsersPanel';
 import {
   IconAdjustmentsHorizontal,
-  IconBell,
-  IconSettings,
   IconUsers,
   IconLogout,
   IconChevronDown,
 } from '@tabler/icons-react';
 import { useRoleContext } from '../../contexts/RoleContext';
+import { CAPABILITIES } from '../../constants/capabilities';
+import { navItemsFor } from '../../constants/dashboards';
 import '../../styles/topbar.css';
 
-export function TopBar() {
-  const { user, currentRole, currentRoleId, logout } = useRoleContext();
+export function TopBar({ manageUsersOpen, setManageUsersOpen }) {
+  const { user, currentRole, logout, can } = useRoleContext();
   const navigate = useNavigate();
+  const location = useLocation();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [manageUsersOpen, setManageUsersOpen] = useState(false);
   const userMenuRef = useRef(null);
 
   // Close dropdown on outside click
@@ -59,12 +59,23 @@ export function TopBar() {
           way into being a different role. Both now come from the signed-in
           account (see RoleContext), shown read-only via the user chip on
           the right. */}
-      <div className="topbar-center" />
+      <nav className="topbar-center topbar-nav" aria-label="Main navigation">
+        {navItemsFor(can).map((item) => (
+          <button
+            key={item.to}
+            className={`topbar-nav-link${location.pathname === item.to ? ' active' : ''}`}
+            onClick={() => navigate(item.to)}
+            aria-current={location.pathname === item.to ? 'page' : undefined}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
 
       {/* ── Right ── */}
       <div className="topbar-right">
-        {/* Admin: Manage Users */}
-        {currentRoleId === 'admin' && (
+        {/* Governance — capability-gated, not role-string-gated */}
+        {can(CAPABILITIES.USER_MANAGE) && (
           <button
             className="manage-users-chip"
             aria-label="Manage users"
@@ -77,17 +88,6 @@ export function TopBar() {
 
         {/* Manage Users Panel */}
         {manageUsersOpen && <ManageUsersPanel onClose={() => setManageUsersOpen(false)} />}
-
-        {/* Notifications */}
-        <button className="topbar-icon-btn" aria-label="Notifications (3 unread)">
-          <IconBell size={17} strokeWidth={1.8} />
-          <span className="notif-badge">3</span>
-        </button>
-
-        {/* Settings */}
-        <button className="topbar-icon-btn" aria-label="Settings">
-          <IconSettings size={17} strokeWidth={1.8} />
-        </button>
 
         {/* User chip with logout dropdown */}
         <div className="user-chip-wrapper" ref={userMenuRef}>

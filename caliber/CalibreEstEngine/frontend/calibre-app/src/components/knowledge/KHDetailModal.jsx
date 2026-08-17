@@ -5,6 +5,7 @@ import {
 import { CONTENT_TYPE_MAP, BU_MAP, FILE_TYPE_CONFIG } from '../../constants/business-units';
 import { getRelatedContent } from '../../constants/knowledge-content';
 import { useRoleContext } from '../../contexts/RoleContext';
+import { CAPABILITIES } from '../../constants/capabilities';
 
 function timeAgo(dateStr) {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -15,8 +16,8 @@ function timeAgo(dateStr) {
 }
 
 export function KHDetailModal({ item, onClose, onDownload, onAskEVA, onSelectRelated }) {
-  const { currentRoleId } = useRoleContext();
-  const canEdit = currentRoleId === 'admin' || currentRoleId === 'sme';
+  const { can } = useRoleContext();
+  const canEdit = can(CAPABILITIES.KNOWLEDGE_REVIEW);
 
   const ct = CONTENT_TYPE_MAP[item?.type] || {};
   const bu = BU_MAP[item?.unitId] || {};

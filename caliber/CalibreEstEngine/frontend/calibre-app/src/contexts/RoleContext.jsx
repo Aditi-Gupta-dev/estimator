@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { ROLES, hasPermission, getCardMode, isUnitScoped, isSelfScoped } from '../constants/roles';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import { ROLES, isUnitScoped, isSelfScoped } from '../constants/roles';
+import { roleCan, capabilitiesFor, denialMessage } from '../constants/capabilities';
 import * as authApi from '../services/authApi';
 
 const RoleContext = createContext(null);
@@ -58,11 +59,16 @@ export function RoleProvider({ children }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  /** Check if current role has a named permission */
-  const can = useCallback((permission) => hasPermission(currentRoleId, permission), [currentRoleId]);
+  /** Does the current role hold this capability? UX only — the server
+   *  re-checks the same capability on every sensitive route, so hiding a
+   *  control here is a convenience, never the security boundary. */
+  const can = useCallback((capability) => roleCan(currentRoleId, capability), [currentRoleId]);
 
-  /** Get the access mode for the current role on a given workflow card */
-  const cardMode = useCallback((cardId) => getCardMode(currentRoleId, cardId), [currentRoleId]);
+  /** Every capability the current role holds — drives nav/dashboard config. */
+  const capabilities = useMemo(() => capabilitiesFor(currentRoleId), [currentRoleId]);
+
+  /** Explain a denial in terms of what the role CAN do. */
+  const whyDenied = useCallback((capability) => denialMessage(capability), []);
 
   return (
     <RoleContext.Provider value={{
@@ -80,7 +86,8 @@ export function RoleProvider({ children }) {
       toasts,
       dismissToast,
       can,
-      cardMode,
+      capabilities,
+      whyDenied,
       isUnitScoped: isUnitScoped(currentRoleId),
       isSelfScoped: isSelfScoped(currentRoleId),
     }}>

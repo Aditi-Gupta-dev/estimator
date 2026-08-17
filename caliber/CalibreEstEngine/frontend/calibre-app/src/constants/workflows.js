@@ -6,6 +6,9 @@ import {
   IconTrendingUp,
 } from '@tabler/icons-react';
 
+// Access is decided by CARD_ACCESS in roles.js. This file previously also
+// carried allowedRoles/requiresAdmin/roleModeLabels — a second, unused role
+// model that disagreed with CARD_ACCESS; removed so there is one answer.
 export const WORKFLOWS = [
   {
     id: 1,
@@ -19,16 +22,7 @@ export const WORKFLOWS = [
     gradientFrom: 'rgba(0, 212, 255, 0.06)',
     Icon: IconHelpCircle,
     colorClass: 'cyan',
-    requiresAdmin: false,
     route: '/estimate/guide',
-    allowedRoles: ['admin', 'super', 'sme', 'senior_mgmt', 'estimator'],
-    roleModeLabels: {
-      admin: 'Full Access',
-      super: 'Full Access',
-      sme: 'Full Access',
-      senior_mgmt: 'Full Access',
-      estimator: 'Full Access',
-    },
   },
   {
     id: 2,
@@ -42,17 +36,7 @@ export const WORKFLOWS = [
     gradientFrom: 'rgba(52, 211, 153, 0.06)',
     Icon: IconCalculator,
     colorClass: 'green',
-    requiresAdmin: false,
     route: '/estimate/create',
-    superBadge: 'Approval Queue',
-    allowedRoles: ['admin', 'super', 'sme', 'senior_mgmt', 'estimator'],
-    roleModeLabels: {
-      admin: 'Full Access',
-      super: 'Unit-Scoped · Approve',
-      sme: 'Review & Feedback',
-      senior_mgmt: 'View & Comment',
-      estimator: 'Own Estimates Only',
-    },
   },
   {
     id: 3,
@@ -66,16 +50,7 @@ export const WORKFLOWS = [
     gradientFrom: 'rgba(255, 179, 71, 0.06)',
     Icon: IconChartBar,
     colorClass: 'amber',
-    requiresAdmin: false,
     route: '/estimate/benchmark',
-    allowedRoles: ['admin', 'super', 'sme', 'senior_mgmt', 'estimator'],
-    roleModeLabels: {
-      admin: 'Full Access',
-      super: 'Unit-Scoped',
-      sme: 'Unit-Scoped',
-      senior_mgmt: 'Unit-Scoped',
-      estimator: 'Own Estimates Only',
-    },
   },
   {
     id: 4,
@@ -89,16 +64,7 @@ export const WORKFLOWS = [
     gradientFrom: 'rgba(167, 139, 250, 0.06)',
     Icon: IconAdjustments,
     colorClass: 'purple',
-    requiresAdmin: true,
     route: '/calibrate',
-    allowedRoles: ['admin', 'super'],
-    roleModeLabels: {
-      admin: 'Full Access · Tune & Publish',
-      super: 'Read-Only',
-      sme: null,
-      senior_mgmt: null,
-      estimator: null,
-    },
   },
   {
     id: 5,
@@ -112,16 +78,7 @@ export const WORKFLOWS = [
     gradientFrom: 'rgba(245, 164, 0, 0.06)',
     Icon: IconTrendingUp,
     colorClass: 'gold',
-    requiresAdmin: false,
     route: '/estimate/roi-cost',
-    allowedRoles: ['admin', 'super', 'sme', 'senior_mgmt', 'estimator'],
-    roleModeLabels: {
-      admin: 'Full Access · Configure',
-      super: 'View & Export',
-      sme: 'View & Export',
-      senior_mgmt: 'View & Export',
-      estimator: 'View & Export',
-    },
   },
 ];
 

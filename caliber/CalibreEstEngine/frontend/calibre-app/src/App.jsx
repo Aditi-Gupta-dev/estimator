@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { TopBar } from './components/layout/TopBar';
 import { LoginPage } from './components/login/LoginPage';
@@ -5,6 +6,7 @@ import { HomePage } from './components/home/HomePage';
 import { EVA } from './components/eva/EVA';
 import { Toast } from './components/common/Toast';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
+import { CAPABILITIES } from './constants/capabilities';
 import { useEVA } from './hooks/useEVA';
 import KnowledgeHubPage from './pages/KnowledgeHubPage';
 import { ROICostCalculatorPage } from './pages/ROICostCalculatorPage';
@@ -18,6 +20,7 @@ import './styles/eva.css';
 // "everything past this point requires auth" wildcard branch.
 function AuthenticatedApp() {
   const evaState = useEVA();
+  const [manageUsersOpen, setManageUsersOpen] = useState(false);
 
   const handleLockedCardClick = (cardTitle) => {
     evaState.sendRestrictedMessage(cardTitle);
@@ -30,8 +33,11 @@ function AuthenticatedApp() {
           path="/home"
           element={
             <>
-              <TopBar />
-              <HomePage onLockedCardClick={handleLockedCardClick} />
+              <TopBar manageUsersOpen={manageUsersOpen} setManageUsersOpen={setManageUsersOpen} />
+              <HomePage
+                onLockedCardClick={handleLockedCardClick}
+                onManageUsers={() => setManageUsersOpen(true)}
+              />
             </>
           }
         />
@@ -39,7 +45,7 @@ function AuthenticatedApp() {
           path="/estimate/guide"
           element={
             <>
-              <TopBar />
+              <TopBar manageUsersOpen={manageUsersOpen} setManageUsersOpen={setManageUsersOpen} />
               <KnowledgeHubPage />
             </>
           }
@@ -48,7 +54,7 @@ function AuthenticatedApp() {
           path="/estimate/roi-cost"
           element={
             <>
-              <TopBar />
+              <TopBar manageUsersOpen={manageUsersOpen} setManageUsersOpen={setManageUsersOpen} />
               <ROICostCalculatorPage />
             </>
           }
@@ -56,10 +62,10 @@ function AuthenticatedApp() {
         <Route
           path="/estimate/create"
           element={
-            <>
-              <TopBar />
+            <ProtectedRoute requires={CAPABILITIES.ESTIMATE_RUN}>
+              <TopBar manageUsersOpen={manageUsersOpen} setManageUsersOpen={setManageUsersOpen} />
               <OracleFusionEstimatorPage />
-            </>
+            </ProtectedRoute>
           }
         />
         <Route path="*" element={<Navigate to="/home" replace />} />

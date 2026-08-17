@@ -25,9 +25,17 @@ FOLDER_TO_UNIT_ID = {
 # Ported from useKnowledgeHub.js's deriveTypeFromFilename — used only when
 # no sidecar JSON exists for a file.
 def _derive_type_from_filename(name: str, subdivision: str) -> str:
+    lower = name.lower()
+    # Rate-card detection runs BEFORE the templates short-circuit. Previously a
+    # rate card misfiled under templates/ was classified "template", which
+    # derive_access_roles then exposed to all five roles — the one
+    # misclassification that leaks commercially sensitive data rather than
+    # merely mislabelling it. Fail safe: if it looks like a rate card, treat it
+    # as one wherever it sits.
+    if "rate" in lower or "ratecard" in lower or "day rate" in lower:
+        return "ratecard"
     if subdivision == "templates":
         return "template"
-    lower = name.lower()
     if "guideline" in lower:
         return "guideline"
     if "pov" in lower or "point of view" in lower:
@@ -36,7 +44,7 @@ def _derive_type_from_filename(name: str, subdivision: str) -> str:
         return "casestudy"
     if "playbook" in lower:
         return "playbook"
-    if "rate" in lower or "cost" in lower or "card" in lower:
+    if "cost" in lower or "card" in lower:
         return "ratecard"
     if "benchmark" in lower or "baseline" in lower:
         return "benchmark"

@@ -1,5 +1,5 @@
 import { useRoleContext } from '../../contexts/RoleContext';
-import { hasCardAccess } from '../../constants/roles';
+import { getCardMode } from '../../constants/roles';
 import { WORKFLOWS } from '../../constants/workflows';
 import { WorkflowCard } from './WorkflowCard';
 
@@ -13,13 +13,12 @@ export function WorkflowGrid({ onLockedClick }) {
       </div>
       <div className={`workflow-grid${isTransitioning ? ' transitioning' : ''}`}>
         {WORKFLOWS.map((wf) => {
-          const accessible = hasCardAccess(currentRoleId, wf.id);
+          const mode = getCardMode(currentRoleId, wf.id);
           return (
             <WorkflowCard
               key={wf.id}
               workflow={wf}
-              isLocked={!accessible}
-              currentRoleId={currentRoleId}
+              mode={mode}
               onLockedClick={() => onLockedClick(wf.title)}
             />
           );

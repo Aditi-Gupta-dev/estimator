@@ -22,11 +22,13 @@ from ..retrieval.retriever import retrieve as retrieve_chunks
 from ..retrieval.role_gate import filter_retrieved_chunks
 from ..retrieval.short_term_memory import build_rolling_summary
 from ..storage.faiss_manager import get_faiss_manager
+from .capabilities import Capability, denial_message, role_can
 from .estimator_context import (
     format_risk_reduction_block,
     format_scenario_block,
     select_estimator_blocks,
 )
+from .scenario_tool import is_scenario_question
 from .state import EvaGraphState, trail_step
 
 
@@ -144,7 +146,21 @@ def estimator_context_node(state: EvaGraphState) -> dict:
     nothing to recalculate; this only decides which parts are relevant.
     """
     ctx = state.get("estimator_context")
-    blocks = select_estimator_blocks(state.get("message", ""), state.get("intent"), ctx)
+    message = state.get("message", "")
+    blocks = select_estimator_blocks(message, state.get("intent"), ctx)
+
+    # If they asked a what-if but their role can't run scenarios, the routing
+    # layer sent them here instead. Say so explicitly — answering the
+    # read-only question without acknowledging the request would look like
+    # the scenario had been run.
+    if ctx and is_scenario_question(message) and not role_can(
+        state.get("caller_role"), Capability.SCENARIO_RUN
+    ):
+        blocks = [{
+            "title": "Scenario execution not permitted for this role",
+            "text": denial_message(Capability.SCENARIO_RUN),
+        }] + blocks
+
     if not blocks:
         return {
             "estimator_blocks": [],
