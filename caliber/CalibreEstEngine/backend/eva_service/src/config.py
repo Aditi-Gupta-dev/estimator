@@ -34,7 +34,12 @@ class Settings(BaseSettings):
     openai_ssl_insecure: bool = False
 
     groq_api_key: str | None = None
-    groq_llm_model: str = "llama-3.1-8b-instant"
+    # Phase 5.1: llama-3.1-8b-instant / llama-3.3-70b-versatile are no longer
+    # served on this account's Groq API (confirmed via GET /openai/v1/models
+    # returning model_not_found for both) — replaced with a model actually
+    # present in that live model list and verified to support
+    # with_structured_output via get_llm() before being set here.
+    groq_llm_model: str = "openai/gpt-oss-120b"
 
     local_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
 
