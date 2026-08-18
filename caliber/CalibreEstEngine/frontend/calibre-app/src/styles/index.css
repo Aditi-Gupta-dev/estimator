@@ -73,6 +73,14 @@
   --r-xl:  20px;
   --r-full:9999px;
 
+  /* Elevation — the design was flat (border-only); these give cards real
+     depth without touching the palette. Layered (ambient + directional) so
+     surfaces read as physically raised rather than just outlined. */
+  --shadow-sm:  0 1px 2px rgba(0,0,0,0.24), 0 1px 1px rgba(0,0,0,0.18);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.28), 0 1px 3px rgba(0,0,0,0.22);
+  --shadow-lg:  0 12px 32px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.24);
+  --shadow-gold-sm: 0 2px 10px rgba(245,164,0,0.14);
+
   /* Fonts */
   --font:  'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Courier New', monospace;
@@ -112,6 +120,15 @@ button {
   cursor: pointer;
   border: none;
   background: none;
+}
+
+/* Visible keyboard focus everywhere, invisible for mouse/touch use — the
+   dark theme's default browser focus ring is nearly invisible against
+   navy, which was a real accessibility gap. */
+:focus-visible {
+  outline: 2px solid var(--gold-border);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
 }
 
 input, textarea {

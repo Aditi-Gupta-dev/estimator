@@ -150,6 +150,14 @@
   flex-shrink: 0;
 }
 
+/* Reflects a real failed request, not a guess — see useEVA.js's isOffline. */
+.eva-header-status.offline { color: var(--danger); }
+
+.eva-status-dot.offline {
+  background: var(--danger);
+  animation: none;
+}
+
 /* Shown only while the user has a live estimate EVA can read. */
 .eva-context-badge {
   display: flex;

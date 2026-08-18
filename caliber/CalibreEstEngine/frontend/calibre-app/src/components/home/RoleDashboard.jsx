@@ -241,10 +241,10 @@ export function RoleDashboard({ onManageUsers, onOpenEstimates, onOpenProjects }
   return (
     <div className="dash-grid">
       <div className="dash-actions">
-        {actions.map((a) => (
+        {actions.map((a, i) => (
           <button
             key={a.label}
-            className="est-run-btn"
+            className={i === 0 ? 'est-run-btn' : 'est-run-btn-secondary'}
             onClick={() => handleAction(a)}
           >
             {a.label}

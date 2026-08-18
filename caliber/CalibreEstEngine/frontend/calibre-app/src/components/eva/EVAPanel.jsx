@@ -10,7 +10,7 @@ import { useRoleContext } from '../../contexts/RoleContext';
 export function EVAPanel({ evaState }) {
   const {
     isOpen, closeEVA, clearChat,
-    messages, sendMessage, isTyping,
+    messages, sendMessage, isTyping, isOffline,
     mode, setMode, suggestions,
     hasEstimatorContext,
   } = evaState;
@@ -38,9 +38,9 @@ export function EVAPanel({ evaState }) {
         <EVAAvatar size="md" animate thinking={isTyping} />
         <div className="eva-header-info">
           <div className="eva-header-name">EVA</div>
-          <div className="eva-header-status">
-            <div className="eva-status-dot" />
-            {isTyping ? 'Thinking…' : 'Online — ready to assist'}
+          <div className={`eva-header-status${isOffline ? ' offline' : ''}`}>
+            <div className={`eva-status-dot${isOffline ? ' offline' : ''}`} />
+            {isTyping ? 'Thinking…' : isOffline ? 'Offline — service unreachable' : 'Online — ready to assist'}
           </div>
           {hasEstimatorContext && (
             <div className="eva-context-badge" title="EVA can see the estimate you're working on">

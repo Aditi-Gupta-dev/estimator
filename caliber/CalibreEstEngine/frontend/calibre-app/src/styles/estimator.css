@@ -22,6 +22,7 @@
   padding: 20px 24px;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-md);
 }
 
 .est-header::before {
@@ -48,24 +49,88 @@
   margin: 0;
 }
 
-/* Tabs */
-.est-tabs {
+/* ── Step indicator — numbered circles + connecting line, not a bare tab
+   underline, so a 3-step wizard actually reads as a sequence with progress
+   (completed/active/upcoming), not three equal-weight menu items. ────────── */
+.est-stepper {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  padding: 4px 4px 6px;
 }
+
+.est-stepper-item {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.est-stepper-item:last-child { flex: 0 0 auto; }
 
 .est-tab {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-muted);
-  border-bottom: 2px solid transparent;
+  transition: color var(--tx-base);
+  flex-shrink: 0;
 }
 
-.est-tab.active {
-  color: var(--text-primary);
-  border-bottom-color: var(--gold);
+.est-tab:hover { color: var(--text-secondary); }
+.est-tab.active { color: var(--text-primary); }
+.est-tab.completed { color: var(--text-secondary); }
+
+.est-tab-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid var(--border-strong);
+  color: var(--text-muted);
+  background: var(--surface-2);
+  flex-shrink: 0;
+  transition: all var(--tx-base);
+}
+
+.est-tab.active .est-tab-num {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-bg);
+  box-shadow: 0 0 0 4px var(--gold-bg);
+}
+
+.est-tab.completed .est-tab-num {
+  border-color: var(--gold);
+  background: var(--gold);
+  color: #0F1417;
+}
+
+.est-tab-label { white-space: nowrap; }
+
+.est-tab-connector {
+  flex: 1;
+  height: 2px;
+  min-width: 24px;
+  margin: 0 12px;
+  background: var(--border-strong);
+  border-radius: 1px;
+  transition: background var(--tx-base);
+}
+
+.est-tab-connector.filled { background: var(--gold); }
+
+@media (max-width: 640px) {
+  .est-tab-label { display: none; }
+  .est-tab-connector { margin: 0 6px; min-width: 12px; }
 }
 
 /* Card shell */
@@ -77,6 +142,12 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  box-shadow: var(--shadow-md);
+  transition: border-color var(--tx-base), box-shadow var(--tx-base);
+}
+
+.est-chart-card:hover {
+  border-color: var(--border-strong);
 }
 
 .est-section-h2 {
@@ -159,7 +230,10 @@
   transition: border 0.15s;
 }
 
-.est-select:focus, .est-input:focus { border-color: var(--gold); }
+.est-select:focus, .est-input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--gold-bg);
+}
 
 .est-select-sm, .est-input-sm { padding: 5px 8px; font-size: 11.5px; }
 .est-input-sm { width: 70px; }
@@ -172,10 +246,48 @@
   font-weight: 600;
   font-size: 14px;
   padding: 11px 20px;
-  border-radius: 6px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-gold-sm);
+  transition: background var(--tx-base), transform var(--tx-base), box-shadow var(--tx-base);
 }
 
-.est-run-btn:hover { background: var(--gold-light); }
+.est-run-btn:hover {
+  background: var(--gold-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px var(--gold-glow);
+}
+
+.est-run-btn:active { transform: translateY(0); }
+
+.est-run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Secondary action — same shape/rhythm as est-run-btn, quieter weight, for
+   rows where one primary action shouldn't be visually competing with 3-4
+   solid-gold siblings (Home dashboard quick actions). */
+.est-run-btn-secondary {
+  align-self: flex-start;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 19px;
+  border-radius: 8px;
+  transition: all var(--tx-base);
+}
+
+.est-run-btn-secondary:hover {
+  background: var(--surface-3);
+  border-color: var(--gold-border);
+  color: var(--gold);
+  transform: translateY(-1px);
+}
 
 /* Component grid table */
 .est-scroll-box {
@@ -210,6 +322,10 @@
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
   color: var(--text-primary);
+}
+
+.est-table tbody tr:not(.est-module-toggle):hover td {
+  background: var(--surface-2);
 }
 
 .est-table-compact td, .est-table-compact th { padding: 10px 14px; }
@@ -309,6 +425,13 @@
   display: flex;
   flex-direction: column;
   gap: 7px;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--tx-base), transform var(--tx-base);
+}
+
+.est-kpi:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
 }
 
 .est-kpi-label {

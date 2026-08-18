@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { IconArrowLeft, IconCalculator } from '@tabler/icons-react';
+import { IconArrowLeft, IconCalculator, IconCheck } from '@tabler/icons-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/estimator.css';
 import { useEstimator } from '../hooks/useEstimator';
@@ -11,9 +11,9 @@ import { EstimatorComponentGrid } from '../components/estimator/EstimatorCompone
 import { EstimatorResultsView } from '../components/estimator/EstimatorResultsView';
 
 const TABS = [
-  { id: 1, label: '1. Global Parameters' },
-  { id: 2, label: '2. Module Estimator' },
-  { id: 3, label: '3. Estimate Output' },
+  { id: 1, label: 'Global Parameters' },
+  { id: 2, label: 'Module Estimator' },
+  { id: 3, label: 'Estimate Output' },
 ];
 
 export function OracleFusionEstimatorPage({ onOpenMyEstimates }) {
@@ -100,17 +100,26 @@ export function OracleFusionEstimatorPage({ onOpenMyEstimates }) {
 
       {reviseLoadError && <div className="est-chart-card est-error">{reviseLoadError}</div>}
 
-      <div className="est-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`est-tab${step === t.id ? ' active' : ''}`}
-            onClick={() => setStep(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <nav className="est-stepper" aria-label="Estimator steps">
+        {TABS.map((t, i) => {
+          const state = step === t.id ? 'active' : step > t.id ? 'completed' : 'upcoming';
+          return (
+            <div className="est-stepper-item" key={t.id}>
+              <button
+                className={`est-tab ${state}`}
+                onClick={() => setStep(t.id)}
+                aria-current={state === 'active' ? 'step' : undefined}
+              >
+                <span className="est-tab-num">
+                  {state === 'completed' ? <IconCheck size={14} strokeWidth={3} /> : t.id}
+                </span>
+                <span className="est-tab-label">{t.label}</span>
+              </button>
+              {i < TABS.length - 1 && <span className={`est-tab-connector${step > t.id ? ' filled' : ''}`} />}
+            </div>
+          );
+        })}
+      </nav>
 
       {step === 1 && (
         <EstimatorGlobalParamsForm

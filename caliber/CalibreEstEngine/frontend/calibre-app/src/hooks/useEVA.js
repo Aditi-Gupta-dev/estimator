@@ -84,6 +84,11 @@ export function useEVA() {
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [mode, setMode]         = useState('text'); // 'text' | 'voice'
+  // Reflects whether the LAST /api/eva call actually succeeded — not
+  // assumed. Starts optimistic (no failed call yet), flips on a real
+  // fetch failure, and clears again the moment a call succeeds. The header
+  // status badge reads this instead of unconditionally claiming "Online".
+  const [isOffline, setIsOffline] = useState(false);
   const prevRoleIdRef           = useRef(null);
   const clientIdRef             = useRef(getOrCreateStoredId(CLIENT_ID_KEY));
   const sessionIdRef            = useRef(getOrCreateStoredId(SESSION_ID_KEY));
@@ -149,6 +154,7 @@ export function useEVA() {
 
       if (!response.ok) throw new Error(`EVA request failed (HTTP ${response.status})`);
       const data = await response.json();
+      setIsOffline(false);
 
       setMessages((prev) => [...prev, {
         id:           Date.now() + 1,
@@ -168,6 +174,7 @@ export function useEVA() {
       // fallback) — a silent fake answer here would be actively misleading
       // in a grounded-reasoning assistant.
       console.error('EVA request failed:', err.message);
+      setIsOffline(true);
       setMessages((prev) => [...prev, {
         id:      Date.now() + 1,
         from:    'eva',
@@ -207,7 +214,7 @@ export function useEVA() {
   return {
     isOpen, toggleEVA, openEVA, closeEVA,
     messages, sendMessage, sendRestrictedMessage, clearChat,
-    isTyping, mode, setMode, suggestions,
+    isTyping, isOffline, mode, setMode, suggestions,
     hasEstimatorContext,
     // Expose for debugging / LLM integration
     systemPrompt:        EVA_SYSTEM_PROMPT,
