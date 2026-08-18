@@ -15,7 +15,7 @@ from .config import settings
 from .memory.extraction import extract_memories
 from .providers.embedding_factory import get_embeddings
 from .providers.llm_factory import get_llm
-from .routes import chat_route, documents_route, health, ingest_route, plan_route
+from .routes import chat_route, delta_route, documents_route, health, ingest_route, plan_route
 from .security.internal_auth import require_internal_key
 from .storage.db import init_db, session_scope
 from .storage.faiss_manager import get_faiss_manager
@@ -100,3 +100,4 @@ app.include_router(ingest_route.router, dependencies=_internal_only)
 app.include_router(documents_route.router, dependencies=_internal_only)
 app.include_router(plan_route.router, dependencies=_internal_only)
 app.include_router(chat_route.router, dependencies=_internal_only)
+app.include_router(delta_route.router, dependencies=_internal_only)

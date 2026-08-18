@@ -26,6 +26,8 @@ import { calculateEstimate } from './estimator/authoritativeEstimate.js';
 import { redactBottomUpForRole } from './estimator/rateCardRedaction.js';
 import * as estimatesService from './estimator/estimatesService.js';
 import * as reviewService from './estimator/reviewService.js';
+import * as projectService from './estimator/projectService.js';
+import * as deltaService from './estimator/deltaService.js';
 import { CAPABILITIES, roleCan } from '../../frontend/calibre-app/src/constants/capabilities.js';
 import { listUsers } from './auth/users.js';
 
@@ -625,6 +627,22 @@ function sendEstimateError(res, err) {
   res.status(status).json({ success: false, error: err.message });
 }
 
+/** Phase 5 — fires (never awaited by the caller) whenever a route just
+ * persisted a version > 1. Never throws into the route handler: a version
+ * write must succeed regardless of whether delta analysis could even be
+ * scheduled (Part 6/18). previousVersionId/currentVersionId come from the
+ * version the service layer just returned, not from the request body. */
+function maybeTriggerDelta(estimateId, latestVersion, actor) {
+  if (!latestVersion?.previousVersionId) return; // version 1 — nothing to compare against
+  try {
+    deltaService.triggerDeltaAnalysis({
+      estimateId, previousVersionId: latestVersion.previousVersionId, currentVersionId: latestVersion.id, actor,
+    }, EVA_URL, INTERNAL_API_KEY);
+  } catch (err) {
+    console.error(`Failed to schedule delta analysis for estimate ${estimateId}:`, err.message);
+  }
+}
+
 app.post('/api/estimates', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), async (req, res) => {
   try {
     const { name, businessUnit, inputs } = req.body || {};
@@ -694,6 +712,7 @@ app.patch('/api/estimates/:id', requireAuth, requireCapability(CAPABILITIES.ESTI
     const result = persist
       ? await estimatesService.saveEstimate({ estimateId: req.params.id, changes, actor }, ESTIMATOR_URL)
       : await estimatesService.updateEstimate({ estimateId: req.params.id, changes, actor }, ESTIMATOR_URL);
+    if (persist) maybeTriggerDelta(req.params.id, result.latestVersion, actor);
     res.json({ success: true, persisted: !!persist, result });
   } catch (err) {
     sendEstimateError(res, err);
@@ -741,12 +760,22 @@ app.post('/api/estimates/:id/submit', requireAuth, requireCapability(CAPABILITIE
   }
 });
 
+// Body accepts EITHER `changes` (the scenario-style delta vocabulary, kept
+// for API/EVA-tool back-compat) OR `inputs` (a full replacement input set —
+// Phase 4 Part 16: the real "Revise Estimate" flow re-opens the actual
+// estimator wizard pre-loaded with the CHANGES_REQUESTED estimate's current
+// inputs, lets the user edit them for real, and submits the full result
+// here rather than a delta). reviewService picks whichever is present.
 app.post('/api/estimates/:id/resubmit', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), async (req, res) => {
   try {
-    const { changes, changeReason } = req.body || {};
+    const {
+      changes, inputs, changeReason,
+    } = req.body || {};
+    const actor = actorFromUser(req.user);
     const estimate = await reviewService.resubmitEstimate({
-      estimateId: req.params.id, changes, changeReason, actor: actorFromUser(req.user),
+      estimateId: req.params.id, changes, inputs, changeReason, actor,
     }, ESTIMATOR_URL);
+    maybeTriggerDelta(req.params.id, estimate.latestVersion, actor);
     res.json({ success: true, estimate });
   } catch (err) {
     sendEstimateError(res, err);
@@ -842,6 +871,144 @@ app.patch('/api/notifications/:id/read', requireAuth, (req, res) => {
   try {
     const notification = reviewService.markNotificationRead(req.params.id, actorFromUser(req.user));
     res.json({ success: true, notification });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+// ── Projects (Phase 4) — approved estimate -> project baseline -> tracking ──
+// Creation is capability-gated (PROJECT_CREATE: admin + super only); every
+// other route is gated on the same broad ESTIMATE_SAVE set the estimate
+// routes already use (admin/super/sme/estimator all "may work with
+// persisted estimates/projects in general"), with per-project ownership/
+// unit filtering enforced inside projectService.requireProjectAccess —
+// never trust req.body for owner_user_id/unit/role/estimate_id (Part 10).
+app.post('/api/projects/from-estimate/:estimateId', requireAuth, requireCapability(CAPABILITIES.PROJECT_CREATE), (req, res) => {
+  try {
+    const { name, description, domain } = req.body || {};
+    const result = projectService.createProjectFromEstimate({
+      estimateId: req.params.estimateId, name, description, domain, actor: actorFromUser(req.user),
+    });
+    res.json({ success: true, ...result });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/projects', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    res.json({ success: true, projects: projectService.listProjects(actorFromUser(req.user)) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/projects/:id', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    res.json({ success: true, project: projectService.getProject(req.params.id, actorFromUser(req.user)) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/projects/:id/baseline', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    res.json({ success: true, baseline: projectService.getProjectBaseline(req.params.id, actorFromUser(req.user)) });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.patch('/api/projects/:id', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const { name, description, domain } = req.body || {};
+    const project = projectService.updateProjectMetadata(
+      req.params.id, { name, description, domain }, actorFromUser(req.user),
+    );
+    res.json({ success: true, project });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.patch('/api/projects/:id/status', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const { status } = req.body || {};
+    const project = projectService.setProjectStatus(req.params.id, status, actorFromUser(req.user));
+    res.json({ success: true, project });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/api/projects/:id/updates', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const {
+      updateType, title, description, status, metadata, requiresEstimateReview,
+    } = req.body || {};
+    const update = projectService.addProjectUpdate(req.params.id, {
+      updateType, title, description, status, metadata, requiresEstimateReview,
+    }, actorFromUser(req.user));
+    res.json({ success: true, update });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/projects/:id/updates', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const updates = projectService.listProjectUpdates(req.params.id, actorFromUser(req.user));
+    res.json({ success: true, updates });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+// ── Version delta analysis (Phase 5) — AI-interpreted, deterministically
+// computed version-to-version comparisons. Access mirrors the estimate/
+// project routes above exactly (requireEstimateViewAccess / requireProjectAccess
+// inside deltaService.js) — same owner/admin/assigned-reviewer and
+// admin/unit-scoped-super rules, no new authorization model. ────────────────
+app.get('/api/estimates/:id/deltas', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const deltas = deltaService.listDeltasForEstimate(req.params.id, actorFromUser(req.user));
+    res.json({ success: true, deltas });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/estimates/:id/versions/:versionId/delta', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const delta = deltaService.getDeltaForVersion(req.params.id, req.params.versionId, actorFromUser(req.user));
+    res.json({ success: true, delta });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/projects/:id/deltas', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const deltas = deltaService.listDeltasForProject(req.params.id, actorFromUser(req.user));
+    res.json({ success: true, deltas });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.get('/api/deltas/:id', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const delta = deltaService.getDelta(req.params.id, actorFromUser(req.user));
+    res.json({ success: true, delta });
+  } catch (err) {
+    sendEstimateError(res, err);
+  }
+});
+
+app.post('/api/deltas/:id/retry', requireAuth, requireCapability(CAPABILITIES.ESTIMATE_SAVE), (req, res) => {
+  try {
+    const delta = deltaService.retryDeltaAnalysis(req.params.id, actorFromUser(req.user), EVA_URL, INTERNAL_API_KEY);
+    res.json({ success: true, delta });
   } catch (err) {
     sendEstimateError(res, err);
   }

@@ -50,3 +50,28 @@ export function redactEstimateForRole(estimate, role) {
   if (!estimate) return estimate;
   return { ...estimate, latestVersion: redactVersionForRole(estimate.latestVersion, role) };
 }
+
+/** Phase 4: a project update's free-form metadata (Part 7) may carry an
+ * actualCost figure — the same commercially-sensitive category as
+ * blendedRate, so it gets the same treatment: stripped for roles without
+ * RATE_CARD_VIEW, regardless of what the client claims about its own role. */
+export function redactProjectUpdateForRole(update, role) {
+  if (!update || !update.metadata || roleCan(role, CAPABILITIES.RATE_CARD_VIEW)) return update;
+  const { actualCost, ...restMetadata } = update.metadata;
+  return { ...update, metadata: restMetadata };
+}
+
+/** Phase 5: strips the ONLY rate-card-restricted category a delta ever
+ * carries — 'roleRate' (the blendedRate-derived $/day deltas). Aggregate
+ * cost/effort deltas are untouched, matching redactBottomUpForRole's exact
+ * policy. Used both at the API read boundary (per the VIEWING actor's role)
+ * and — critically — to build the LLM's context BEFORE the request ever
+ * leaves this process (Part 3: redaction must happen before LLM context
+ * construction, not rely on the prompt to behave). */
+export function redactDeltaForRole(delta, role) {
+  if (!delta || roleCan(role, CAPABILITIES.RATE_CARD_VIEW)) return delta;
+  return {
+    ...delta,
+    numericDeltas: (delta.numericDeltas || []).filter((d) => d.category !== 'roleRate'),
+  };
+}

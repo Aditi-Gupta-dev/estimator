@@ -18,6 +18,81 @@
 .dg-status-approved          { color: var(--green); }
 .dg-status-approved     .dg-dot { background: var(--green); }
 
+/* Phase 4 — project lifecycle statuses */
+.dg-status-planned           { color: var(--text-muted); }
+.dg-status-planned      .dg-dot { background: var(--text-muted); }
+.dg-status-active            { color: var(--green); }
+.dg-status-active       .dg-dot { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+.dg-status-on_hold           { color: var(--amber); }
+.dg-status-on_hold      .dg-dot { background: var(--amber); }
+.dg-status-completed         { color: var(--purple); }
+.dg-status-completed    .dg-dot { background: var(--purple); }
+.dg-status-cancelled         { color: var(--danger); }
+.dg-status-cancelled    .dg-dot { background: var(--danger); }
+
+/* Phase 5 — delta analysis statuses. Distinct class prefix (not reusing
+   dg-status-completed) since project 'completed' is intentionally purple —
+   a delta finishing successfully reads better as green, like 'approved'. */
+.dg-delta-pending            { color: var(--text-muted); }
+.dg-delta-pending       .dg-dot { background: var(--text-muted); }
+.dg-delta-running            { color: var(--purple); }
+.dg-delta-running       .dg-dot { background: var(--purple); box-shadow: 0 0 6px var(--purple); animation: pulse 2s infinite; }
+.dg-delta-completed           { color: var(--green); }
+.dg-delta-completed     .dg-dot { background: var(--green); }
+.dg-delta-failed             { color: var(--danger); }
+.dg-delta-failed        .dg-dot { background: var(--danger); }
+
+/* ── Deterministic vs AI-interpretation split (Part 15) — never let the AI
+   section look like it produced the numbers above it. ───────────────────── */
+.es-delta-section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 14px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.es-delta-numeric-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+
+.es-delta-numeric-row:last-child { border-bottom: none; }
+.es-delta-numeric-field { color: var(--text-secondary); text-transform: capitalize; }
+.es-delta-numeric-value { font-family: var(--font-mono); color: var(--text-primary); white-space: nowrap; }
+.es-delta-numeric-value.up { color: var(--amber); }
+.es-delta-numeric-value.down { color: var(--cyan); }
+
+.es-ai-card {
+  background: linear-gradient(135deg, var(--gold-bg), var(--surface-2));
+  border: 1px solid var(--gold-border);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+}
+
+.es-ai-fact-tag, .es-ai-inference-tag {
+  display: inline-block;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.es-ai-fact-tag { color: var(--cyan); border: 1px solid var(--cyan-border); background: var(--cyan-bg); }
+.es-ai-inference-tag { color: var(--gold); border: 1px solid var(--gold-border); background: var(--gold-bg); }
+
 /* ── Panel tabs (My Estimates / Review Queue) ────────────────────────────── */
 .es-tabs {
   display: flex;

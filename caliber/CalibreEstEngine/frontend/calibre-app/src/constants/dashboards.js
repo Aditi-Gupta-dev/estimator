@@ -23,6 +23,7 @@ export const DASHBOARDS = {
     quickActions: [
       { label: 'Manage Users', to: null, action: 'manage-users', capability: C.USER_MANAGE },
       { label: 'Estimates & Reviews', to: null, action: 'my-estimates', capability: C.ESTIMATE_SAVE },
+      { label: 'Projects', to: null, action: 'projects', capability: C.ESTIMATE_SAVE },
       { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
       { label: 'Open Estimator', to: '/estimate/create', capability: C.ESTIMATE_RUN },
     ],
@@ -38,6 +39,7 @@ export const DASHBOARDS = {
     quickActions: [
       { label: 'New Estimate', to: '/estimate/create', capability: C.ESTIMATE_RUN },
       { label: 'Estimates & Reviews', to: null, action: 'my-estimates', capability: C.ESTIMATE_SAVE },
+      { label: 'Projects', to: null, action: 'projects', capability: C.ESTIMATE_SAVE },
       { label: 'ROI & Cost', to: '/estimate/roi-cost' },
       { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
     ],
@@ -50,6 +52,7 @@ export const DASHBOARDS = {
     quickActions: [
       { label: 'Open Estimator', to: '/estimate/create', capability: C.ESTIMATE_RUN },
       { label: 'My Estimates', to: null, action: 'my-estimates', capability: C.ESTIMATE_SAVE },
+      { label: 'Projects', to: null, action: 'projects', capability: C.ESTIMATE_SAVE },
       { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
     ],
     unavailable: [
@@ -64,6 +67,7 @@ export const DASHBOARDS = {
     quickActions: [
       { label: 'New Estimate', to: '/estimate/create', capability: C.ESTIMATE_RUN },
       { label: 'My Estimates', to: null, action: 'my-estimates', capability: C.ESTIMATE_SAVE },
+      { label: 'Projects', to: null, action: 'projects', capability: C.ESTIMATE_SAVE },
       { label: 'ROI & Cost', to: '/estimate/roi-cost' },
       { label: 'Knowledge Hub', to: '/estimate/guide', capability: C.KNOWLEDGE_VIEW },
     ],

@@ -108,14 +108,14 @@ export function requireEstimateViewAccess(estimateId, actor) {
  * kind (see estimatesDb.js's COLUMN_MIGRATIONS comment). */
 export function writeAudit({
   estimateId, action, actor, fromStatus = null, toStatus = null, reason = null,
-  versionId = null, metadata = null,
+  versionId = null, metadata = null, projectId = null,
 }) {
   db.prepare(`
     INSERT INTO estimate_audit_events
       (id, estimate_id, action, actor_user_id, actor_name, actor_role, from_status, to_status, reason,
-       version_id, metadata_json, created_at)
+       version_id, metadata_json, project_id, created_at)
     VALUES (@id, @estimateId, @action, @actorUserId, @actorName, @actorRole, @fromStatus, @toStatus, @reason,
-       @versionId, @metadataJson, @createdAt)
+       @versionId, @metadataJson, @projectId, @createdAt)
   `).run({
     id: randomUUID(),
     estimateId,
@@ -128,6 +128,7 @@ export function writeAudit({
     reason,
     versionId,
     metadataJson: metadata ? JSON.stringify(metadata) : null,
+    projectId,
     createdAt: now(),
   });
 }

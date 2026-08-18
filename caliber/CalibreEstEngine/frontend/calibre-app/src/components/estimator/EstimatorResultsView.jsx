@@ -12,12 +12,14 @@ import { AnomalyReviewCard } from './AnomalyReviewCard';
 import { RiskReductionCard } from './RiskReductionCard';
 import { ScenarioSimulatorPanel } from './ScenarioSimulatorPanel';
 import { SaveEstimateCard } from './SaveEstimateCard';
+import { SubmitRevisionCard } from './SubmitRevisionCard';
 
 const fmt = (n, d = 0) => (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: d, minimumFractionDigits: d });
 const fmtCurrency = (n) => `$${fmt(n / 1000)}k`;
 
 export function EstimatorResultsView({
   result, sectionA, overallComplexity, industry, overrides, componentRows, selectedCount, onOpenMyEstimates,
+  reviseEstimateId, reviseEstimateName, reviseCurrentVersion,
 }) {
   const [simulatorOpen, setSimulatorOpen] = useState(false);
 
@@ -40,13 +42,26 @@ export function EstimatorResultsView({
 
   return (
     <>
-      <SaveEstimateCard
-        industry={industry}
-        overallComplexity={overallComplexity}
-        sectionA={sectionA}
-        overrides={overrides}
-        onOpenMyEstimates={onOpenMyEstimates}
-      />
+      {reviseEstimateId ? (
+        <SubmitRevisionCard
+          reviseEstimateId={reviseEstimateId}
+          reviseEstimateName={reviseEstimateName}
+          currentVersion={reviseCurrentVersion}
+          industry={industry}
+          overallComplexity={overallComplexity}
+          sectionA={sectionA}
+          overrides={overrides}
+          onSubmitted={onOpenMyEstimates}
+        />
+      ) : (
+        <SaveEstimateCard
+          industry={industry}
+          overallComplexity={overallComplexity}
+          sectionA={sectionA}
+          overrides={overrides}
+          onOpenMyEstimates={onOpenMyEstimates}
+        />
+      )}
 
       <div className="est-chart-card">
         <h2 className="est-section-h2">

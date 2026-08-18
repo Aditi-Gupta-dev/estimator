@@ -98,6 +98,22 @@ export function useEstimator() {
     [overrides],
   );
 
+  // Loads an EXISTING input set into the wizard — the Phase 4 "Revise
+  // Estimate" flow (Part 16): re-opens the real estimator UI pre-filled
+  // with a CHANGES_REQUESTED estimate's current inputs instead of
+  // duplicating the wizard inside the review panel. Overrides is merged
+  // onto the full 67-component default shape so a saved estimate that
+  // predates a template addition still hydrates cleanly.
+  const hydrate = useCallback((inputs) => {
+    if (!inputs) return;
+    setIndustry(inputs.industry ?? 'BFSI');
+    setOverallComplexity(inputs.overallComplexity ?? 'H');
+    setSectionA({ ...defaultSectionA(), ...(inputs.sectionA || {}) });
+    setOverrides({ ...defaultOverrides(), ...(inputs.overrides || {}) });
+    setResult(null);
+    setStep(1);
+  }, []);
+
   return {
     step, setStep,
     industry, setIndustry,
@@ -106,6 +122,6 @@ export function useEstimator() {
     overrides, updateOverride, setIncludedForComponents, selectedCount,
     componentRows,
     isLoading, error, result,
-    runEstimate,
+    runEstimate, hydrate,
   };
 }

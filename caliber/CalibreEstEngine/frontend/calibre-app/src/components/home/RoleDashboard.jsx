@@ -224,7 +224,7 @@ function TechnicalReviewSection() {
   );
 }
 
-export function RoleDashboard({ onManageUsers, onOpenEstimates }) {
+export function RoleDashboard({ onManageUsers, onOpenEstimates, onOpenProjects }) {
   const { currentRoleId, can } = useRoleContext();
   const navigate = useNavigate();
   const config = dashboardFor(currentRoleId);
@@ -234,6 +234,7 @@ export function RoleDashboard({ onManageUsers, onOpenEstimates }) {
   const handleAction = (a) => {
     if (a.action === 'manage-users') return onManageUsers?.();
     if (a.action === 'my-estimates') return onOpenEstimates?.();
+    if (a.action === 'projects') return onOpenProjects?.();
     return navigate(a.to);
   };
 

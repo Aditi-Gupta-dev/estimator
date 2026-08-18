@@ -8,11 +8,13 @@ import '../../styles/home.css';
 // here; both were entirely hardcoded ("47 Estimates Created", five invented
 // activity events) and were removed rather than re-skinned — Calibre has no
 // estimate persistence, so those numbers could not be made real.
-export function HomePage({ onLockedCardClick, onManageUsers, onOpenEstimates }) {
+export function HomePage({
+  onLockedCardClick, onManageUsers, onOpenEstimates, onOpenProjects,
+}) {
   return (
     <main className="home-page" id="main-content" aria-label="Calibre home">
       <HeroBanner />
-      <RoleDashboard onManageUsers={onManageUsers} onOpenEstimates={onOpenEstimates} />
+      <RoleDashboard onManageUsers={onManageUsers} onOpenEstimates={onOpenEstimates} onOpenProjects={onOpenProjects} />
       <WorkflowGrid onLockedClick={onLockedCardClick} />
     </main>
   );

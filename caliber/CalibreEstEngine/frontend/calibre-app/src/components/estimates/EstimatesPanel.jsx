@@ -2,12 +2,15 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   IconX, IconClipboardList, IconDots, IconLoader2, IconFilter, IconSend,
   IconBellRinging, IconUserPlus, IconHistory, IconPlayerPlay, IconCheck,
-  IconBan, IconMessageCircle2,
+  IconBan, IconMessageCircle2, IconBriefcase, IconEdit, IconSparkles,
 } from '@tabler/icons-react';
 import * as estimatesApi from '../../services/estimatesApi';
 import * as authApi from '../../services/authApi';
+import * as projectsApi from '../../services/projectsApi';
+import * as deltasApi from '../../services/deltasApi';
 import { useRoleContext } from '../../contexts/RoleContext';
 import { CAPABILITIES } from '../../constants/capabilities';
+import { DeltaDetailModal } from './DeltaDetailModal';
 import '../../styles/document-governance.css';
 import '../../styles/estimates.css';
 
@@ -43,19 +46,26 @@ function fmtDate(iso) {
   });
 }
 
+const DELTA_STATUS_LABEL = {
+  pending: 'AI analysis pending', running: 'AI analyzing…', completed: 'AI delta ready', failed: 'AI analysis failed',
+};
+
 /* ── Version history + review trail modal — read-only, no editing of an
    old version is even possible since nothing here writes anything. */
 function HistoryModal({ estimateId, name, onClose }) {
   const [versions, setVersions] = useState(null);
   const [reviews, setReviews] = useState([]);
+  const [deltas, setDeltas] = useState([]);
   const [error, setError] = useState('');
+  const [openDeltaId, setOpenDeltaId] = useState(null);
 
   useEffect(() => {
     let alive = true;
     Promise.all([
       estimatesApi.getEstimateHistory(estimateId),
       estimatesApi.listReviews(estimateId).catch(() => []), // may 403 for a non-reviewer bystander; history alone still renders
-    ]).then(([v, r]) => { if (alive) { setVersions(v); setReviews(r); } })
+      deltasApi.listDeltasForEstimate(estimateId).catch(() => []),
+    ]).then(([v, r, d]) => { if (alive) { setVersions(v); setReviews(r); setDeltas(d); } })
       .catch((err) => { if (alive) setError(err.message); });
     return () => { alive = false; };
   }, [estimateId]);
@@ -65,6 +75,12 @@ function HistoryModal({ estimateId, name, onClose }) {
     reviews.forEach((r) => { (map[r.versionId] ||= []).push(r); });
     return map;
   }, [reviews]);
+
+  const deltaByCurrentVersionId = useMemo(() => {
+    const map = {};
+    deltas.forEach((d) => { map[d.currentVersionId] = d; });
+    return map;
+  }, [deltas]);
 
   return (
     <div className="dg-form-overlay" onClick={onClose}>
@@ -91,6 +107,18 @@ function HistoryModal({ estimateId, name, onClose }) {
                       {r.comments && <div style={{ marginTop: 3 }}>&ldquo;{r.comments}&rdquo;</div>}
                     </div>
                   ))}
+                  {deltaByCurrentVersionId[v.id] && (
+                    <div className="es-review-row">
+                      <button
+                        className="dg-menu-item"
+                        style={{ padding: '4px 0', color: 'var(--gold)' }}
+                        onClick={() => setOpenDeltaId(deltaByCurrentVersionId[v.id].id)}
+                      >
+                        <IconSparkles size={13} strokeWidth={2} />
+                        {DELTA_STATUS_LABEL[deltaByCurrentVersionId[v.id].status]} — View AI Delta (vs V{v.version - 1})
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -100,22 +128,36 @@ function HistoryModal({ estimateId, name, onClose }) {
           <button className="dg-btn-cancel" onClick={onClose}>Close</button>
         </div>
       </div>
+
+      {openDeltaId && (
+        <DeltaDetailModal
+          deltaId={openDeltaId}
+          estimateName={name}
+          onClose={() => setOpenDeltaId(null)}
+          onRetried={() => deltasApi.listDeltasForEstimate(estimateId).then(setDeltas).catch(() => {})}
+        />
+      )}
     </div>
   );
 }
 
-/* ── Resubmit modal (CHANGES_REQUESTED -> SUBMITTED via a new version) ──── */
-function ResubmitModal({ estimate, onClose, onDone }) {
-  const [changeReason, setChangeReason] = useState('');
+/* ── Create Project modal (approved estimate -> project baseline) ───────── */
+function CreateProjectModal({ estimate, onClose, onDone }) {
+  const [name, setName] = useState(`${estimate.name} — Project`);
+  const [description, setDescription] = useState('');
+  const [domain, setDomain] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [result, setResult] = useState(null);
 
   const handleConfirm = async () => {
     setSaving(true);
     setError('');
     try {
-      await estimatesApi.resubmitEstimate(estimate.id, { changes: {}, changeReason });
-      onDone();
+      const { project, created } = await projectsApi.createProjectFromEstimate(estimate.id, {
+        name, description, domain,
+      });
+      setResult({ project, created });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -123,37 +165,59 @@ function ResubmitModal({ estimate, onClose, onDone }) {
     }
   };
 
+  if (result) {
+    return (
+      <div className="dg-form-overlay" onClick={onClose}>
+        <div className="dg-form-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="dg-form-header">
+            <h3>{result.created ? 'Project Created' : 'Project Already Exists'}</h3>
+            <button className="dg-close-btn" onClick={onClose}><IconX size={16} /></button>
+          </div>
+          <div className="dg-form-body">
+            <div className="est-note">
+              {result.created
+                ? `"${result.project.projectKey}" was created with baseline V${estimate.currentVersion}.`
+                : `An active project ("${result.project.projectKey}") already exists for this estimate.`}
+            </div>
+          </div>
+          <div className="dg-form-footer">
+            <button className="dg-btn-save" onClick={() => onDone(result.project)}>Open Projects →</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dg-form-overlay" onClick={onClose}>
       <div className="dg-form-modal" onClick={(e) => e.stopPropagation()}>
         <div className="dg-form-header">
-          <h3>Resubmit for Review</h3>
+          <h3>Create Project</h3>
           <button className="dg-close-btn" onClick={onClose}><IconX size={16} /></button>
         </div>
         <div className="dg-form-body">
           <div className="dg-form-row">
-            <label>Estimate</label>
-            <div className="dg-form-doc-title">{estimate.name}</div>
+            <label>Baseline Estimate</label>
+            <div className="dg-form-doc-title">{estimate.name} — V{estimate.currentVersion} (approved)</div>
           </div>
           <div className="dg-form-row">
-            <label>What changed? (required)</label>
-            <textarea
-              className="dg-textarea"
-              rows={3}
-              value={changeReason}
-              onChange={(e) => setChangeReason(e.target.value)}
-              placeholder="Describe how you addressed the reviewer's feedback…"
-            />
+            <label>Project Name</label>
+            <input className="dg-search-input" style={{ paddingLeft: 12 }} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
-          <div className="est-note">
-            This creates a new immutable version (V{estimate.currentVersion + 1}) and sends it back for review.
+          <div className="dg-form-row">
+            <label>Description</label>
+            <textarea className="dg-textarea" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+          </div>
+          <div className="dg-form-row">
+            <label>Domain</label>
+            <input className="dg-search-input" style={{ paddingLeft: 12 }} value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="e.g. Oracle Fusion ERP" />
           </div>
           {error && <div className="dg-error-banner" role="alert">{error}</div>}
         </div>
         <div className="dg-form-footer">
           <button className="dg-btn-cancel" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="dg-btn-save" disabled={saving || !changeReason.trim()} onClick={handleConfirm}>
-            {saving ? 'Resubmitting…' : 'Resubmit'}
+          <button className="dg-btn-save" disabled={saving || !name.trim()} onClick={handleConfirm}>
+            {saving ? 'Creating…' : 'Create Project'}
           </button>
         </div>
       </div>
@@ -296,10 +360,13 @@ function AssignReviewerModal({ estimate, reviewers, onClose, onDone }) {
 }
 
 /* ── Main panel ───────────────────────────────────────────────────────────── */
-export function EstimatesPanel({ onClose, initialTab = 'mine' }) {
+export function EstimatesPanel({
+  onClose, initialTab = 'mine', onOpenProjects, onReviseEstimate,
+}) {
   const { user, can } = useRoleContext();
   const canApprove = can(CAPABILITIES.ESTIMATE_APPROVE);
   const canAssign = can(CAPABILITIES.REVIEWER_ASSIGN);
+  const canCreateProject = can(CAPABILITIES.PROJECT_CREATE);
 
   const [tab, setTab] = useState(initialTab === 'queue' && canApprove ? 'queue' : 'mine');
   const [mine, setMine] = useState([]);
@@ -310,7 +377,7 @@ export function EstimatesPanel({ onClose, initialTab = 'mine' }) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [historyTarget, setHistoryTarget] = useState(null);
-  const [resubmitTarget, setResubmitTarget] = useState(null);
+  const [createProjectTarget, setCreateProjectTarget] = useState(null);
   const [decisionTarget, setDecisionTarget] = useState(null);
   const [assignTarget, setAssignTarget] = useState(null);
   const [busyId, setBusyId] = useState(null);
@@ -432,8 +499,8 @@ export function EstimatesPanel({ onClose, initialTab = 'mine' }) {
                                     </button>
                                   )}
                                   {e.status === 'changes_requested' && e.ownerUserId === user.id && (
-                                    <button className="dg-menu-item" onClick={() => { setMenuOpenId(null); setResubmitTarget(e); }}>
-                                      <IconSend size={13} strokeWidth={2} /> Resubmit
+                                    <button className="dg-menu-item" onClick={() => { setMenuOpenId(null); onReviseEstimate?.(e.id); }}>
+                                      <IconEdit size={13} strokeWidth={2} /> Revise Estimate
                                     </button>
                                   )}
                                   {(e.status === 'submitted' || e.status === 'under_review') && e.ownerUserId === user.id && (
@@ -444,6 +511,11 @@ export function EstimatesPanel({ onClose, initialTab = 'mine' }) {
                                   {canAssign && (e.status === 'submitted' || e.status === 'under_review') && (
                                     <button className="dg-menu-item" onClick={() => { setMenuOpenId(null); setAssignTarget(e); }}>
                                       <IconUserPlus size={13} strokeWidth={2} /> Assign Reviewer
+                                    </button>
+                                  )}
+                                  {e.status === 'approved' && canCreateProject && (
+                                    <button className="dg-menu-item" onClick={() => { setMenuOpenId(null); setCreateProjectTarget(e); }}>
+                                      <IconBriefcase size={13} strokeWidth={2} /> Create Project
                                     </button>
                                   )}
                                   <button className="dg-menu-item" onClick={() => { setMenuOpenId(null); setHistoryTarget(e); }}>
@@ -523,11 +595,11 @@ export function EstimatesPanel({ onClose, initialTab = 'mine' }) {
       {historyTarget && (
         <HistoryModal estimateId={historyTarget.id} name={historyTarget.name} onClose={() => setHistoryTarget(null)} />
       )}
-      {resubmitTarget && (
-        <ResubmitModal
-          estimate={resubmitTarget}
-          onClose={() => setResubmitTarget(null)}
-          onDone={() => { setResubmitTarget(null); load(); }}
+      {createProjectTarget && (
+        <CreateProjectModal
+          estimate={createProjectTarget}
+          onClose={() => setCreateProjectTarget(null)}
+          onDone={() => { setCreateProjectTarget(null); onOpenProjects?.(); }}
         />
       )}
       {decisionTarget && (

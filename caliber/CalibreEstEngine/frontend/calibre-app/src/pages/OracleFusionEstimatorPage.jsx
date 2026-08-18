@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { IconArrowLeft, IconCalculator } from '@tabler/icons-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import '../styles/estimator.css';
 import { useEstimator } from '../hooks/useEstimator';
 import { useEstimatorContext } from '../contexts/EstimatorContextProvider';
 import { buildEstimatorContext } from '../lib/estimatorContext';
+import * as estimatesApi from '../services/estimatesApi';
 import { EstimatorGlobalParamsForm } from '../components/estimator/EstimatorGlobalParamsForm';
 import { EstimatorComponentGrid } from '../components/estimator/EstimatorComponentGrid';
 import { EstimatorResultsView } from '../components/estimator/EstimatorResultsView';
@@ -17,13 +18,39 @@ const TABS = [
 
 export function OracleFusionEstimatorPage({ onOpenMyEstimates }) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const reviseEstimateId = searchParams.get('reviseEstimateId');
   const estimator = useEstimator();
   const {
     step, setStep, industry, setIndustry, overallComplexity, setOverallComplexity,
     sectionA, updateSectionA, overrides, componentRows, updateOverride, setIncludedForComponents, selectedCount,
-    isLoading, error, result, runEstimate,
+    isLoading, error, result, runEstimate, hydrate,
   } = estimator;
   const { publishEstimatorContext, clearEstimatorContext } = useEstimatorContext();
+
+  // Phase 4 Part 16 — "Revise Estimate": the wizard re-opened pre-filled
+  // with a CHANGES_REQUESTED estimate's current inputs, so the user edits
+  // for real instead of the review panel resubmitting unchanged inputs.
+  const [reviseInfo, setReviseInfo] = useState(null); // { name, currentVersion } once loaded
+  const [reviseLoadError, setReviseLoadError] = useState('');
+
+  useEffect(() => {
+    if (!reviseEstimateId) return;
+    let alive = true;
+    estimatesApi.getEstimate(reviseEstimateId)
+      .then((est) => {
+        if (!alive) return;
+        if (est.status !== 'changes_requested') {
+          setReviseLoadError(`This estimate is "${est.status}", not changes-requested — nothing to revise.`);
+          return;
+        }
+        hydrate(est.latestVersion.inputs);
+        setReviseInfo({ name: est.name, currentVersion: est.currentVersion });
+      })
+      .catch((err) => { if (alive) setReviseLoadError(err.message); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviseEstimateId]);
 
   // Keep EVA's snapshot current without firing any request (spec §11) — the
   // next EVA turn simply reads whatever is latest. Cleared on unmount so
@@ -59,15 +86,19 @@ export function OracleFusionEstimatorPage({ onOpenMyEstimates }) {
               <IconArrowLeft size={16} />
             </button>
             <IconCalculator size={22} color="var(--gold)" />
-            Oracle Fusion Template Estimator
+            {reviseInfo ? `Revising: ${reviseInfo.name}` : 'Oracle Fusion Template Estimator'}
           </h1>
           <p className="est-subtitle">
-            Bottom-up estimate built from a 67-component catalog — select only what applies to this
-            engagement — calibrated against 500 executed Oracle Fusion programmes via the UC-1/UC-2
-            risk-scoring models.
+            {reviseInfo
+              ? `Editing V${reviseInfo.currentVersion}, sent back with reviewer feedback — resubmitting creates V${reviseInfo.currentVersion + 1} of this same estimate.`
+              : 'Bottom-up estimate built from a 67-component catalog — select only what applies to this '
+                + 'engagement — calibrated against 500 executed Oracle Fusion programmes via the UC-1/UC-2 '
+                + 'risk-scoring models.'}
           </p>
         </div>
       </header>
+
+      {reviseLoadError && <div className="est-chart-card est-error">{reviseLoadError}</div>}
 
       <div className="est-tabs">
         {TABS.map((t) => (
@@ -131,6 +162,9 @@ export function OracleFusionEstimatorPage({ onOpenMyEstimates }) {
               componentRows={componentRows}
               selectedCount={selectedCount}
               onOpenMyEstimates={onOpenMyEstimates}
+              reviseEstimateId={reviseInfo ? reviseEstimateId : null}
+              reviseEstimateName={reviseInfo?.name}
+              reviseCurrentVersion={reviseInfo?.currentVersion}
             />
           )}
         </>

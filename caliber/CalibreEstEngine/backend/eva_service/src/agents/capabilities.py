@@ -29,6 +29,7 @@ class Capability:
     ESTIMATE_SAVE = "estimate.save"
     ESTIMATE_APPROVE = "estimate.approve"
     REVIEWER_ASSIGN = "reviewer.assign"
+    PROJECT_CREATE = "project.create"
     RATE_CARD_VIEW = "ratecard.view"
     KNOWLEDGE_VIEW = "knowledge.view"
     KNOWLEDGE_UPLOAD = "knowledge.upload"
@@ -44,6 +45,7 @@ ROLE_CAPABILITIES: dict[str, list[str]] = {
     "admin": [
         Capability.ESTIMATE_RUN, Capability.ESTIMATE_VIEW_DETAIL, Capability.SCENARIO_RUN,
         Capability.ESTIMATE_SAVE, Capability.ESTIMATE_APPROVE, Capability.REVIEWER_ASSIGN,
+        Capability.PROJECT_CREATE,
         Capability.RATE_CARD_VIEW,
         Capability.KNOWLEDGE_VIEW, Capability.KNOWLEDGE_UPLOAD, Capability.KNOWLEDGE_REVIEW,
         Capability.EXECUTIVE_ANALYTICS_VIEW, Capability.PLATFORM_ANALYTICS_VIEW,
@@ -53,7 +55,7 @@ ROLE_CAPABILITIES: dict[str, list[str]] = {
     ],
     "super": [
         Capability.ESTIMATE_RUN, Capability.ESTIMATE_VIEW_DETAIL, Capability.SCENARIO_RUN,
-        Capability.ESTIMATE_SAVE, Capability.ESTIMATE_APPROVE,
+        Capability.ESTIMATE_SAVE, Capability.ESTIMATE_APPROVE, Capability.PROJECT_CREATE,
         Capability.RATE_CARD_VIEW,
         Capability.KNOWLEDGE_VIEW, Capability.KNOWLEDGE_UPLOAD,
         Capability.EXECUTIVE_ANALYTICS_VIEW,
@@ -111,6 +113,9 @@ CAPABILITY_DENIAL_MESSAGE = {
     ),
     Capability.REVIEWER_ASSIGN: (
         "Assigning a reviewer to an estimate is not available for this role."
+    ),
+    Capability.PROJECT_CREATE: (
+        "Creating a project from an approved estimate is not available for this role."
     ),
 }
 

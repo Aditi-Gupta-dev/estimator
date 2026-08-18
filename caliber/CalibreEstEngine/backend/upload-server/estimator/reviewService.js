@@ -24,6 +24,8 @@ import {
   estimateToPublic, insertVersion, proposeChanges, now,
 } from './estimatesService.js';
 import { redactEstimateForRole } from './rateCardRedaction.js';
+import { createNotification, listNotifications, markNotificationRead } from './notifications.js';
+import { calculateEstimate } from './authoritativeEstimate.js';
 
 export class ReviewValidationError extends Error {
   constructor(message, status = 422) {
@@ -33,46 +35,10 @@ export class ReviewValidationError extends Error {
   }
 }
 
-// ── Notifications (Part 12) ─────────────────────────────────────────────────
-// Smallest database-backed model consistent with the existing architecture
-// — no email/SMS/push, in-app only, per the phase's explicit instruction.
-function createNotification({
-  userId, type, message, estimateId = null,
-}) {
-  db.prepare(`
-    INSERT INTO notifications (id, user_id, type, message, estimate_id, created_at)
-    VALUES (@id, @userId, @type, @message, @estimateId, @createdAt)
-  `).run({
-    id: randomUUID(), userId, type, message, estimateId, createdAt: now(),
-  });
-}
-
-function notificationToPublic(row) {
-  return {
-    id: row.id,
-    type: row.type,
-    message: row.message,
-    estimateId: row.estimate_id,
-    readAt: row.read_at,
-    createdAt: row.created_at,
-  };
-}
-
-export function listNotifications(actor, { unreadOnly = false } = {}) {
-  const rows = unreadOnly
-    ? db.prepare('SELECT * FROM notifications WHERE user_id = ? AND read_at IS NULL ORDER BY created_at DESC').all(actor.userId)
-    : db.prepare('SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC').all(actor.userId);
-  return rows.map(notificationToPublic);
-}
-
-export function markNotificationRead(notificationId, actor) {
-  const row = db.prepare('SELECT * FROM notifications WHERE id = ?').get(notificationId);
-  if (!row) throw new EstimateNotFoundError('Notification not found.');
-  if (row.user_id !== actor.userId) throw new EstimateAccessError('You do not have access to this notification.');
-  const ts = now();
-  db.prepare('UPDATE notifications SET read_at = ? WHERE id = ?').run(ts, notificationId);
-  return notificationToPublic({ ...row, read_at: ts });
-}
+// Notifications (Part 12) now live in notifications.js — re-exported here so
+// index.js's existing `reviewService.listNotifications(...)` call sites need
+// no changes. projectService.js (Phase 4) imports the same module directly.
+export { listNotifications, markNotificationRead };
 
 // ── Reviewer assignment (Part 2, 4, 5) ──────────────────────────────────────
 
@@ -242,11 +208,21 @@ export function submitEstimate({ estimateId, actor }) {
 }
 
 /** CHANGES_REQUESTED -> SUBMITTED, via a brand-new IMMUTABLE version (Part
- * 11) — reuses the exact same insertVersion()/proposeChanges() saveEstimate()
- * already uses (estimatesService.js); the version that was reviewed and
- * found wanting is never touched. */
+ * 11) — reuses the exact same insertVersion() saveEstimate() already uses
+ * (estimatesService.js); the version that was reviewed and found wanting is
+ * never touched.
+ *
+ * Phase 4 Part 16/17: accepts EITHER `changes` (the scenario-delta
+ * vocabulary, via the existing proposeChanges()/applyChanges() path — kept
+ * for API/EVA-tool back-compat) OR a full `inputs` replacement (the real
+ * "Revise Estimate" flow: the estimator wizard re-opened with this
+ * estimate's current inputs, edited for real, and submitted whole — a
+ * delta vocabulary can't represent an arbitrary wizard edit). Whichever
+ * path runs, insertVersion() still server-derives previousVersionId from
+ * (estimateId, current_version) and the version number is still
+ * current_version+1 — never taken from the client (Part 17). */
 export async function resubmitEstimate({
-  estimateId, changes, changeReason, actor,
+  estimateId, changes, inputs, changeReason, actor,
 }, estimatorUrl) {
   const row = requireEstimate(estimateId, actor);
   if (row.status !== EstimateStatus.CHANGES_REQUESTED) {
@@ -256,7 +232,17 @@ export async function resubmitEstimate({
     throw new ReviewValidationError('changeReason is required when resubmitting.');
   }
 
-  const { nextInputs, scored } = await proposeChanges(estimateId, changes, actor, estimatorUrl);
+  let nextInputs;
+  let scored;
+  if (inputs) {
+    if (!inputs.sectionA || !inputs.overrides) {
+      throw new ReviewValidationError('inputs.sectionA and inputs.overrides are required.');
+    }
+    nextInputs = inputs;
+    scored = await calculateEstimate(inputs, estimatorUrl);
+  } else {
+    ({ nextInputs, scored } = await proposeChanges(estimateId, changes, actor, estimatorUrl));
+  }
   const nextVersion = row.current_version + 1;
   const versionRow = insertVersion({
     estimateId, version: nextVersion, inputs: nextInputs, scored, actor, changeReason,

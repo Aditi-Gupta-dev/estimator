@@ -27,7 +27,7 @@ function fmtRelative(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-function NotificationBell({ onOpenEstimates }) {
+function NotificationBell({ onOpenEstimates, onOpenProjects }) {
   const { can } = useRoleContext();
   const [notifications, setNotifications] = useState([]);
   const [open, setOpen] = useState(false);
@@ -65,7 +65,11 @@ function NotificationBell({ onOpenEstimates }) {
       } catch { /* non-fatal — worst case it stays unread */ }
     }
     setOpen(false);
-    onOpenEstimates?.();
+    // Project-scoped notifications (project created/status changed/estimate
+    // review signal) open Projects; everything else (review/reviewer
+    // events) opens Estimates & Reviews, same as before Phase 4.
+    if (n.projectId) onOpenProjects?.();
+    else onOpenEstimates?.();
   };
 
   return (
@@ -97,7 +101,9 @@ function NotificationBell({ onOpenEstimates }) {
   );
 }
 
-export function TopBar({ manageUsersOpen, setManageUsersOpen, onOpenEstimates }) {
+export function TopBar({
+  manageUsersOpen, setManageUsersOpen, onOpenEstimates, onOpenProjects,
+}) {
   const { user, currentRole, logout, can } = useRoleContext();
   const navigate = useNavigate();
   const location = useLocation();
@@ -174,7 +180,7 @@ export function TopBar({ manageUsersOpen, setManageUsersOpen, onOpenEstimates })
         {/* Manage Users Panel */}
         {manageUsersOpen && <ManageUsersPanel onClose={() => setManageUsersOpen(false)} />}
 
-        <NotificationBell onOpenEstimates={onOpenEstimates} />
+        <NotificationBell onOpenEstimates={onOpenEstimates} onOpenProjects={onOpenProjects} />
 
         {/* User chip with logout dropdown */}
         <div className="user-chip-wrapper" ref={userMenuRef}>

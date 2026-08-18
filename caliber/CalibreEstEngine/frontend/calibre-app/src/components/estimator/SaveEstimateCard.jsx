@@ -3,6 +3,7 @@ import { IconDeviceFloppy, IconCircleCheck } from '@tabler/icons-react';
 import { useRoleContext } from '../../contexts/RoleContext';
 import { CAPABILITIES } from '../../constants/capabilities';
 import * as estimatesApi from '../../services/estimatesApi';
+import '../../styles/document-governance.css';
 
 /** The one missing wire between the already-authoritative compute pipeline
  * (this page's `result`) and the already-built persistence layer

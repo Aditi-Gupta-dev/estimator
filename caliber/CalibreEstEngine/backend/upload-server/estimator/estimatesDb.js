@@ -126,6 +126,85 @@ db.exec(`
   )
 `);
 
+// ── Phase 4: projects ────────────────────────────────────────────────────────
+// One row per project, always derived from an APPROVED estimate version.
+// baseline_estimate_version_id is set once at creation and never changes —
+// that IS the baseline guarantee (Part 3). current_estimate_version_id
+// starts equal to the baseline and is reserved for the future re-baselining
+// workflow (Part 8) — nothing in this phase ever moves it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    project_key TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    description TEXT,
+    estimate_id TEXT NOT NULL,
+    baseline_estimate_version_id TEXT NOT NULL,
+    current_estimate_version_id TEXT NOT NULL,
+    owner_user_id TEXT NOT NULL,
+    unit TEXT,
+    domain TEXT,
+    status TEXT NOT NULL DEFAULT 'planned',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT
+  )
+`);
+
+// ── Phase 4: project updates ────────────────────────────────────────────────
+// Insert-only, like estimate_versions/estimate_reviews — a project's history
+// is the full ordered list of these rows, never an overwritten "latest
+// state" field. metadata_json is deliberately schema-free (Part 7: "keep
+// project data domain-neutral at the core") — actuals like effort/duration/
+// cost/milestone/risks live there rather than as dedicated columns, since
+// what's relevant varies by domain and this phase must not hardcode
+// ESU-only fields. requires_estimate_review is its own column (not buried in
+// metadata_json) because it drives real queries/notifications (Part 9).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS project_updates (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    update_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    status TEXT,
+    metadata_json TEXT,
+    requires_estimate_review INTEGER NOT NULL DEFAULT 0
+  )
+`);
+
+// ── Phase 5: delta analyses ──────────────────────────────────────────────────
+// One row per (estimate, previous version, current version) pair — never
+// overwritten, so V3->V4's delta and V4->V5's delta both remain queryable
+// forever, exactly like estimate_reviews never overwrites an old decision.
+// The UNIQUE constraint IS the idempotency guarantee (Part 18): a duplicate
+// trigger for the same pair cannot create a second row. deterministic_delta
+// holds the real (unredacted) numbers — redacted per-role only at the API
+// read boundary, same convention as estimate_versions.bottom_up_json.
+// ai_analysis_json is built from a request that was ALREADY redacted before
+// it ever reached the LLM (Part 3) — the stored text can never contain a
+// blendedRate figure regardless of who later reads it.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS delta_analyses (
+    id TEXT PRIMARY KEY,
+    estimate_id TEXT NOT NULL,
+    project_id TEXT,
+    previous_version_id TEXT NOT NULL,
+    current_version_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    deterministic_delta_json TEXT,
+    ai_analysis_json TEXT,
+    error_message TEXT,
+    created_by_user_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(estimate_id, previous_version_id, current_version_id)
+  )
+`);
+
 // (table, column, sql type) — additive-only column migrations for tables
 // that may already exist on disk from Phase 1/2 without these columns.
 // Safe to re-run: each column is only added if missing.
@@ -144,6 +223,12 @@ const COLUMN_MIGRATIONS = [
   // column) rather than adding a new single-purpose column per event kind.
   ['estimate_audit_events', 'version_id', 'TEXT'],
   ['estimate_audit_events', 'metadata_json', 'TEXT'],
+  // Phase 4: lets a project's audit trail be queried directly (WHERE
+  // project_id = ?) instead of pattern-matching metadata_json. estimate_id
+  // stays populated too on every project event, so an estimate's own audit
+  // trail still shows "led to project X" without a join.
+  ['estimate_audit_events', 'project_id', 'TEXT'],
+  ['notifications', 'project_id', 'TEXT'],
 ];
 
 function migrateColumns() {

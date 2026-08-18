@@ -76,11 +76,14 @@ export async function submitEstimate(id) {
   return data.estimate;
 }
 
-/** changes: same closed vocabulary as scenario execution (durationMonthsDelta,
- * moduleEffortMultiplier, etc.) — pass {} for "no input changes, just a new
- * change reason", though in practice a resubmission usually has both. */
-export async function resubmitEstimate(id, { changes, changeReason }) {
-  const { res, data } = await send('POST', `/estimates/${id}/resubmit`, { changes, changeReason });
+/** Pass EITHER `changes` (the scenario-delta vocabulary — durationMonthsDelta,
+ * moduleEffortMultiplier, etc., kept for EVA-tool-style callers) OR `inputs`
+ * (a full replacement input set — {industry, overallComplexity, sectionA,
+ * overrides} — the real "Revise Estimate" flow: the estimator wizard
+ * re-opened and edited for real, then submitted whole). changeReason is
+ * always required. */
+export async function resubmitEstimate(id, { changes, inputs, changeReason }) {
+  const { res, data } = await send('POST', `/estimates/${id}/resubmit`, { changes, inputs, changeReason });
   assertOk(res, data, 'Failed to resubmit estimate');
   return data.estimate;
 }

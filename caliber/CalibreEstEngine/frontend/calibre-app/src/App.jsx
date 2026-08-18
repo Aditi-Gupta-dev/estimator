@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { TopBar } from './components/layout/TopBar';
 import { LoginPage } from './components/login/LoginPage';
 import { HomePage } from './components/home/HomePage';
@@ -7,6 +7,7 @@ import { EVA } from './components/eva/EVA';
 import { Toast } from './components/common/Toast';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { EstimatesPanel } from './components/estimates/EstimatesPanel';
+import { ProjectsPanel } from './components/estimates/ProjectsPanel';
 import { CAPABILITIES } from './constants/capabilities';
 import { useEVA } from './hooks/useEVA';
 import KnowledgeHubPage from './pages/KnowledgeHubPage';
@@ -21,11 +22,26 @@ import './styles/eva.css';
 // "everything past this point requires auth" wildcard branch.
 function AuthenticatedApp() {
   const evaState = useEVA();
+  const navigate = useNavigate();
   const [manageUsersOpen, setManageUsersOpen] = useState(false);
   const [estimatesOpen, setEstimatesOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
 
   const handleLockedCardClick = (cardTitle) => {
     evaState.sendRestrictedMessage(cardTitle);
+  };
+
+  // Phase 4 Part 16 — closes the review panel and sends the estimator to
+  // the real wizard, pre-loaded with the CHANGES_REQUESTED estimate's
+  // current inputs (see OracleFusionEstimatorPage's reviseEstimateId read).
+  const handleReviseEstimate = (estimateId) => {
+    setEstimatesOpen(false);
+    navigate(`/estimate/create?reviseEstimateId=${estimateId}`);
+  };
+
+  const handleOpenProjects = () => {
+    setEstimatesOpen(false);
+    setProjectsOpen(true);
   };
 
   return (
@@ -39,11 +55,13 @@ function AuthenticatedApp() {
                 manageUsersOpen={manageUsersOpen}
                 setManageUsersOpen={setManageUsersOpen}
                 onOpenEstimates={() => setEstimatesOpen(true)}
+                onOpenProjects={() => setProjectsOpen(true)}
               />
               <HomePage
                 onLockedCardClick={handleLockedCardClick}
                 onManageUsers={() => setManageUsersOpen(true)}
                 onOpenEstimates={() => setEstimatesOpen(true)}
+                onOpenProjects={() => setProjectsOpen(true)}
               />
             </>
           }
@@ -56,6 +74,7 @@ function AuthenticatedApp() {
                 manageUsersOpen={manageUsersOpen}
                 setManageUsersOpen={setManageUsersOpen}
                 onOpenEstimates={() => setEstimatesOpen(true)}
+                onOpenProjects={() => setProjectsOpen(true)}
               />
               <KnowledgeHubPage />
             </>
@@ -69,6 +88,7 @@ function AuthenticatedApp() {
                 manageUsersOpen={manageUsersOpen}
                 setManageUsersOpen={setManageUsersOpen}
                 onOpenEstimates={() => setEstimatesOpen(true)}
+                onOpenProjects={() => setProjectsOpen(true)}
               />
               <ROICostCalculatorPage />
             </>
@@ -82,6 +102,7 @@ function AuthenticatedApp() {
                 manageUsersOpen={manageUsersOpen}
                 setManageUsersOpen={setManageUsersOpen}
                 onOpenEstimates={() => setEstimatesOpen(true)}
+                onOpenProjects={() => setProjectsOpen(true)}
               />
               <OracleFusionEstimatorPage onOpenMyEstimates={() => setEstimatesOpen(true)} />
             </ProtectedRoute>
@@ -91,7 +112,14 @@ function AuthenticatedApp() {
       </Routes>
 
       {/* Global overlays — present on every authenticated route */}
-      {estimatesOpen && <EstimatesPanel onClose={() => setEstimatesOpen(false)} />}
+      {estimatesOpen && (
+        <EstimatesPanel
+          onClose={() => setEstimatesOpen(false)}
+          onOpenProjects={handleOpenProjects}
+          onReviseEstimate={handleReviseEstimate}
+        />
+      )}
+      {projectsOpen && <ProjectsPanel onClose={() => setProjectsOpen(false)} />}
       <EVA evaStateOverride={evaState} />
       <Toast />
     </>
